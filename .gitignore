@@ -63,3 +63,5 @@ config.py
 #remove wrong commits
 github-gem/
 
+#blueprint files - for dev
+blueprint_files/
