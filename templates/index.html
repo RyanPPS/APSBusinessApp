@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html ng-app="APSBusinessApp">
+  <head>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.13/angular.min.js"></script>
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <title>APS Business Application</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <style>
+      .container {
+        max-width: 1000px;
+      }
+    </style>
+  </head>
+  <body ng-controller="APSBusinessController">
+    <div class="container">
+      <div class="row">
+        <div class="col-sm-5 col-sm-offset-1">
+          <h1>Amazon Manufacturer Search</h1>
+          <br>
+          <form role="form" ng-submit="getResults()">
+            <div class="form-group">
+              <input type="text" name="url" class="form-control" id="manufacturer-box" placeholder="Enter Manufacturer..." style="max-width: 300px;" ng-model="input_manufacturer" required>
+            </div>
+            {% raw %}
+            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitButtonText }}</button>
+            {% endraw %}
+          </form>
+          <div class="alert alert-danger" role="alert" ng-show='manufacturerError'>
+            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+            <span class="sr-only">Error:</span>
+            There was an error submitting your Manufacturer. Please check to make sure it is valid before trying again.
+        </div>
+        </div>
+        <div class="col-sm-5 col-sm-offset-1">
+          {% raw %}
+          <h2 id='listingCount'>Listings: {{ listingCount }}</h2>
+          {% endraw %}
+          <br>
+        <div id="results">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th></th>
+                <th>ASIN</th>
+                <th>Manufacturer</th>
+                <th>Title</th>
+                <th>Part Number</th>
+                <th>UPC</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% raw %}
+              <tr ng-repeat="(asin, listing) in listings">
+                  <td><img src={{listing.imagelist.small_image_url}} alt={{listing.part_number}}></td>
+                  <td>{{asin}}</td>
+                  <td>{{listing.manufacturer}}</td>
+                  <td>{{listing.title}}</td>
+                  <td>{{listing.part_number}}</td>
+                  <td>{{listing.upc}}</td>
+                  <td>{{listing.LowestNewPrice}}</td>
+              </tr>
+            {% endraw %}
+            </tbody>
+          </table>
+        </div>
+        <img class="col-sm-3 col-sm-offset-4" src="{{ url_for('static', filename='spinner.gif') }}" ng-show="loading">
+      </div>
+    </div>
+    <br><br>
+    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+  </body>
+</html>
