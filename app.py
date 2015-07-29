@@ -1,13 +1,15 @@
 import json
+import os
 from flask import Flask, Response, render_template, request, jsonify
 from copy import deepcopy
 #this is another:  from amazonproduct import API
 from amazon.api import AmazonAPI, AmazonProduct
-from config import AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOC_TAG
+from amazon_credentials import AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOC_TAG
 from variables import LISTINGS_SCHEME
 
 
 app = Flask(__name__)
+app.config.from_object(os.environ['APP_SETTINGS'])
 amazon = AmazonAPI(AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOC_TAG)
 
 
