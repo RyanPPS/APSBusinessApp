@@ -4,14 +4,18 @@ from flask import Flask, Response, render_template, request, jsonify
 from copy import deepcopy
 #this is another:  from amazonproduct import API
 from amazon.api import AmazonAPI, AmazonProduct
-from amazon_credentials import AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOC_TAG
 from variables import LISTINGS_SCHEME
 
-
+# Flask configuration
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
-amazon = AmazonAPI(AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY, AMAZON_ASSOC_TAG)
 
+# Amazon product advertising API configuration
+amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
+                    os.environ['AMAZON_SECRET_KEY'], 
+                    os.environ['AMAZON_ASSOC_TAG'])
+
+print(os.environ['APP_SETTINGS'])
 
 @app.route('/')
 def home():
@@ -24,7 +28,7 @@ def itemsearch(manufacturer):
     listings = {'count':'',
                 'products':{}}
     count = 0
-    for i,product in enumerate(products):
+    for product in products:
         count += 1
         asin = product.asin
         listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
@@ -56,6 +60,7 @@ def itemsearch(manufacturer):
     return jsonify(listings)
 
 def get_jobid():
+    #TODO: Add jobid when database is set up.
     job = q.enqueue_call(
         func=itemsearch, args=(manufacturer,), result_ttl=5000
     )
