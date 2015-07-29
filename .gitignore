@@ -59,3 +59,7 @@ docs/_build/
 
 #configuration file
 config.py
+
+#remove wrong commits
+github-gem/
+
