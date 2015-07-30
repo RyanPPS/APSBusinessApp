@@ -1,6 +1,7 @@
 import json
 import os
 from flask import Flask, Response, render_template, request, jsonify
+from flask.ext.sqlalchemy import SQLAlchemy
 from copy import deepcopy
 #this is another:  from amazonproduct import API
 from amazon.api import AmazonAPI, AmazonProduct
@@ -9,6 +10,11 @@ from variables import LISTINGS_SCHEME
 # Flask configuration
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
+login_manager = LoginManager()
+login_manager.init_app(app)
+db = SQLAlchemy(app)
+
+from models import Listigns, Products, Images
 
 # Amazon product advertising API configuration
 amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
