@@ -10,11 +10,9 @@ from variables import LISTINGS_SCHEME
 # Flask configuration
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
-login_manager = LoginManager()
-login_manager.init_app(app)
 db = SQLAlchemy(app)
 
-from models import Listigns, Products, Images
+from models import Listign, Image
 
 # Amazon product advertising API configuration
 amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 

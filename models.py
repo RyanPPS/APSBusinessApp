@@ -27,7 +27,7 @@ class Listings(db.Model):
     asin = db.Column(db.String(), primary_key=True)
     manufacturer = db.Column(db.String())
     part_number = db.Column(db.String())
-    upc = db.Column(db.String(), db.ForeignKey('products.upc'))
+    upc = db.Column(db.String())
     title = db.Column(db.String())
     price = db.Column(db.Float)
     currency = db.Column(db.String())
@@ -88,7 +88,9 @@ class Image(db.Model):
     def __repr__(self):
         return '<listing_asin {}>'.format(self.listing_asin)
 
-class Product(db.Model):
+
+# TODO: Create product table with relationship to listing and image
+#class Product(db.Model):
     """A product that is related to listing(s) and image(s).
 
     :param str upc: upc code
@@ -103,6 +105,7 @@ class Product(db.Model):
     :param str length: length of product
     :param bool available: products availability
     :param rel images: relationship to different size images for a listing
+    """
     """
     __tablename__ = 'product'
 
@@ -119,6 +122,7 @@ class Product(db.Model):
     width = db.Column(db.String())
     length = db.Column(db.String())
     images = db.relationship("Image" backref='product')
+    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     
 
     def __init__(self, upc, asin, manufacturer, part_number, title, 
@@ -140,6 +144,7 @@ class Product(db.Model):
 
     def __repr__(self):
         return '<upc {}>'.format(self.upc)
+    """
 
 class User(db.Model):
     """An admin user capable of viewing reports.
