@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import JSON
 
 
-class Listings(db.Model):
+class Listing(db.Model):
     """An Amazon listing that is related to an images and a product.
 
     :param str asin: Amazon's unique identifier for listing
@@ -22,7 +22,7 @@ class Listings(db.Model):
     :param rel images: relationship to different size images for a listing
     :param json result_all: contains all the listing information.
     """
-    __tablename__ = 'listings'
+    __tablename__ = 'listing'
 
     asin = db.Column(db.String(), primary_key=True)
     manufacturer = db.Column(db.String())
@@ -34,13 +34,13 @@ class Listings(db.Model):
     result_all = db.Column(JSON)
 
     # Add relationship: The ForeignKey below expresses that values in 
-    # the listings.images_id column should be constrained to those 
+    # the listing.images_id column should be constrained to those 
     # values in the images.id column, i.e. its primary key.
-    images_id = db.Column(db.Integer, db.ForeignKey('images.id'))
-    images = db.relationship("Images")
+    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
+    images = db.relationship("image", backref='listing', lazy='dynamic')
     
 
-    def __init__(self, asin, manufacturer, part_number, upc, title, price, currency, images, images_id, result_all):
+    def __init__(self, asin, manufacturer, part_number, upc, title, price, currency, images, image_id, result_all):
         self.asin = asin
         self.manufacturer = manufacturer
         self.part_number = part_number
@@ -64,22 +64,19 @@ class Image(db.Model):
     :param str medium_image: url string for the medium image
     :param str large_image: url string for the large image
     """
+    # TODO: add relationship to listing.
     __tablename__ = 'image'
 
-    id = db.Column(db.Integer, primary_key=True autoincrement=True)
-    listing_asin = db.Column(db.String() db.ForeignKey('listing.asin'))
-    upc = db.Column(db.String() db.ForeignKey('product.upc'))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tiny_image = db.Column(db.String())
     small_image = db.Column(db.String())
     medium_image = db.Column(db.String())
     large_image = db.Column(db.String())
 
-    def __init__(self, id, listing_asin, upc, tiny_image, small_image, 
+    def __init__(self, id, tiny_image, small_image, 
             medium_image, large_image):
 
         self.id = id
-        self.listing_asin = listing_asin
-        self.upc = upc
         self.tiny_image = tiny_image
         self.small_image = small_image
         self.medium_image = medium_image

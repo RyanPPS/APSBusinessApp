@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
 db = SQLAlchemy(app)
 
-from models import Listign, Image
+from models import Listing, Image
 
 # Amazon product advertising API configuration
 amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
