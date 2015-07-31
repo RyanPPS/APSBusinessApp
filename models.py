@@ -4,10 +4,11 @@
 # :table images: images for a particular product
 # :table user: user information
 
-from app import db
-from sqlalchemy import ForeignKey
+
+from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSON
 
+db = SQLAlchemy()
 
 class Listing(db.Model):
     """An Amazon listing that is related to an images and a product.
@@ -37,11 +38,12 @@ class Listing(db.Model):
     # the listing.images_id column should be constrained to those 
     # values in the images.id column, i.e. its primary key.
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
-    images = db.relationship("image", backref='listing', lazy='dynamic')
+    images = db.relationship("Image", backref='Listing')
     
-
-    def __init__(self, asin, manufacturer, part_number, upc, title, price, currency, images, image_id, result_all):
+    def __init__(self, asin, result_all):
         self.asin = asin
+        self.result_all = result_all
+        """
         self.manufacturer = manufacturer
         self.part_number = part_number
         self.upc = upc
@@ -50,7 +52,7 @@ class Listing(db.Model):
         self.currency = currency
         self.image_id = image_id
         self.images = images
-        self.result_all = result_all
+        """
 
     def __repr__(self):
         return '<asin {}>'.format(self.asin)
@@ -72,7 +74,7 @@ class Image(db.Model):
     small_image = db.Column(db.String())
     medium_image = db.Column(db.String())
     large_image = db.Column(db.String())
-
+    """
     def __init__(self, id, tiny_image, small_image, 
             medium_image, large_image):
 
@@ -81,12 +83,42 @@ class Image(db.Model):
         self.small_image = small_image
         self.medium_image = medium_image
         self.large_image = large_image
-
+    """
     def __repr__(self):
         return '<listing_asin {}>'.format(self.listing_asin)
 
+class User(db.Model):
+    """An admin user capable of viewing reports.
 
-# TODO: Create product table with relationship to listing and image
+    :param str email: email address of user
+    :param str password: encrypted password for the user
+
+    """
+    __tablename__ = 'user'
+
+    email = db.Column(db.String, primary_key=True)
+    password = db.Column(db.String)
+    authenticated = db.Column(db.Boolean, default=False)
+
+    def is_active(self):
+        """True, as all users are active."""
+        return True
+
+    def get_id(self):
+        """Return the email address to satisfy Flask-Login's requirements."""
+        return self.email
+
+    def is_authenticated(self):
+        """Return True if the user is authenticated."""
+        return self.authenticated
+
+    def is_anonymous(self):
+        """False, as anonymous users aren't supported."""
+        return False
+
+#########
+# TODO: # Create product table with relationship to listing and image
+#########
 #class Product(db.Model):
     """A product that is related to listing(s) and image(s).
 
@@ -142,37 +174,6 @@ class Image(db.Model):
     def __repr__(self):
         return '<upc {}>'.format(self.upc)
     """
-
-class User(db.Model):
-    """An admin user capable of viewing reports.
-
-    :param str email: email address of user
-    :param str password: encrypted password for the user
-
-    """
-    __tablename__ = 'user'
-
-    email = db.Column(db.String, primary_key=True)
-    password = db.Column(db.String)
-    authenticated = db.Column(db.Boolean, default=False)
-
-    def is_active(self):
-        """True, as all users are active."""
-        return True
-
-    def get_id(self):
-        """Return the email address to satisfy Flask-Login's requirements."""
-        return self.email
-
-    def is_authenticated(self):
-        """Return True if the user is authenticated."""
-        return self.authenticated
-
-    def is_anonymous(self):
-        """False, as anonymous users aren't supported."""
-        return False
-
-
 
 
 
