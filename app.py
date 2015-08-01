@@ -72,61 +72,83 @@ def logout():
     logout_user()
     return render_template("logout.html")
 
-@app.route('/rollback')
-def rollback():
-    db.session.rollback()
-    return render_template("login.html", form=LoginForm())
-
-@app.route('/close')
-def close():
-    db.session.close()
-    return render_template("login.html", form=LoginForm())
-
 
 @app.route('/')
 @login_required
 def home():
     return render_template('index.html')
 
+@app.route('/start', methods=['POST'])
+@login_required
+def start():
+    # TODO: Add jobid when database is set up.
+    data = json.loads(request.data.decode())
+    return data["user_input"]
+
 @app.route('/itemsearch/<manufacturer>', methods=['GET'])
 @login_required
 def itemsearch(manufacturer):
-    listings = {}
+    """User can search Amazon's product listings by manufacturer.
+
+    TODO: Allow user to select category. Currently LawnAndGarden. 
+    TODO: Enable multiple manufacturer search.
+
+    :param str manufacturer: the manufacturer to search for.
+    """
     products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
     listings = {'count':'',
                 'products':{}}
     count = 0
     for product in products:
         count += 1
-        asin = product.asin
-        listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
-        listing = listings['products'][asin]
-        for keyi in listing.keys():
-            #TODO: Extend AmazonProduct class to include LowestNewPrice
-            # .. :temporary: extend AmazonProduct class
-            if keyi == 'LowestNewPrice':
-                price = product._safe_get_element_text(
-                    'OfferSummary.LowestNewPrice.Amount')
-                fprice = float(price) / 100 if 'JP' not in product.region else price
-                listing[keyi] = fprice
-                continue
-
-            # images go in imagelist    
-            if isinstance(listing[keyi], dict):
-                for keyj in listing[keyi].keys():
-                    try:
-                        listing[keyi][keyj] = product.__getattribute__(keyj)
-                    except:
-                        print("Attribute {0} not found".format(keyj))
-                continue
-
-            try:
-                listing[keyi] = product.__getattribute__(keyi)
-            except:
-                print("Attribute {0} not found".format(keyi))
+        add_product(product, listings)
     listings['count'] = count
     return jsonify(listings)
 
+@app.route('/itemlookup/<upc>', methods=['GET'])
+@login_required
+def itemlookup(upc):
+    listings = {'count':'',
+            'products':{}}
+    products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
+    for product in products:
+        add_product(product, listings)
+    return jsonify(listings)
+
+def add_product(product, listings):
+    asin = product.asin
+    listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
+    listing = listings['products'][asin]
+    for keyi in listing.keys():
+        #TODO: Extend AmazonProduct class to include LowestNewPrice
+        # .. :temporary: extend AmazonProduct class
+        if keyi == 'LowestNewPrice':
+            price = product._safe_get_element_text(
+                'OfferSummary.LowestNewPrice.Amount')
+            if price:
+                print "Price evaulated True"
+                print price
+                fprice = float(price) / 100 if 'JP' not in product.region else price
+            else:
+                print "Price evaulated False"
+                print price
+                fprice = price
+            listing[keyi] = fprice
+            continue
+
+        # images go in imagelist    
+        if isinstance(listing[keyi], dict):
+            for keyj in listing[keyi].keys():
+                try:
+                    listing[keyi][keyj] = product.__getattribute__(keyj)
+                except:
+                    print("Attribute {0} not found".format(keyj))
+            continue
+
+        try:
+            listing[keyi] = product.__getattribute__(keyi)
+        except:
+            print("Attribute {0} not found".format(keyi))
 
 
 def get_jobid():
@@ -140,16 +162,6 @@ def get_jobid():
     # return created job id
     return job.get_id()
 
-@app.route('/start', methods=['POST'])
-@login_required
-def start():
-    # TODO: Add jobid when database is set up.
-    data = json.loads(request.data.decode())
-    manufacturer = data["manufacturer"]
-
-    # TODO: start job
-    
-    return manufacturer
 
 
 
