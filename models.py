@@ -28,7 +28,8 @@ class Listing(db.Model):
     asin = db.Column(db.String(), primary_key=True)
     manufacturer = db.Column(db.String())
     part_number = db.Column(db.String())
-    upc = db.Column(db.String())
+    upc = db.Column(db.String(), db.ForeignKey('product.upc'))
+    products = db.relationship("Product", backref='Listing')
     title = db.Column(db.String())
     price = db.Column(db.Float)
     currency = db.Column(db.String())
@@ -116,10 +117,8 @@ class User(db.Model):
         """False, as anonymous users aren't supported."""
         return False
 
-#########
-# TODO: # Create product table with relationship to listing and image
-#########
-#class Product(db.Model):
+
+class Product(db.Model):
     """A product that is related to listing(s) and image(s).
 
     :param str upc: upc code
@@ -135,11 +134,11 @@ class User(db.Model):
     :param bool available: products availability
     :param rel images: relationship to different size images for a listing
     """
-    """
+
     __tablename__ = 'product'
 
     upc = db.Column(db.String(), primary_key=True)
-    listings = db.relationship("Listing" backref='product')
+    listings = db.relationship("Listing", backref='product')
     manufacturer = db.Column(db.String())
     part_number = db.Column(db.String())
     title = db.Column(db.String())
@@ -150,30 +149,18 @@ class User(db.Model):
     height = db.Column(db.String())
     width = db.Column(db.String())
     length = db.Column(db.String())
-    images = db.relationship("Image" backref='product')
-    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
+    # TODO: Create relationship to image
+    #images = db.relationship("Image" backref='product')
+    #image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     
-
-    def __init__(self, upc, asin, manufacturer, part_number, title, 
-            primary_cost, secondary_cost, available, weight, height, length, images):
-
+    """
+    def __init__(self, upc, manufacturer, part_number):
         self.upc = upc
-        self.asin = asin
-        self.manufacturer = manufacturer
-        self.part_number = part_number
-        self.title = title
-        self.primary_cost = primary_cost
-        self.secondary_cost = secondary_cost
-        self.available = available
-        self.weight = weight
-        self.height = height
-        self.width = width
-        self.length = length
-        self.images = images
+    """
 
     def __repr__(self):
         return '<upc {}>'.format(self.upc)
-    """
+
 
 
 

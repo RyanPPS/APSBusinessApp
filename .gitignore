@@ -62,3 +62,7 @@ blueprint_files/
 
 # github-gem/ removes accidental commits
 github-gem/
+
+# Database files
+Database_files/
+

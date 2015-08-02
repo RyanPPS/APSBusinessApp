@@ -15,7 +15,7 @@ from flask.ext.sqlalchemy import SQLAlchemy
 from amazon.api import AmazonAPI, AmazonProduct
 from variables import LISTINGS_SCHEME
 from forms import LoginForm
-from models import Listing, User, db
+from models import Listing, User, Product, db
 
 # Flask configuration
 app = Flask(__name__)
@@ -65,7 +65,6 @@ def login():
 def logout():
     """Logout the current user."""
     user = current_user
-    print current_user.is_authenticated()
     user.authenticated = False
     db.session.add(user)
     db.session.commit()
@@ -109,7 +108,7 @@ def itemsearch(manufacturer):
 @login_required
 def itemlookup(upc):
     listings = {'count':'',
-            'products':{}}
+            'products':{'cost':0.0}}
     products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
     for product in products:
         add_product(product, listings)
@@ -119,6 +118,7 @@ def add_product(product, listings):
     asin = product.asin
     listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
     listing = listings['products'][asin]
+    compare_price(product.upc, listing)
     for keyi in listing.keys():
         #TODO: Extend AmazonProduct class to include LowestNewPrice
         # .. :temporary: extend AmazonProduct class
@@ -126,12 +126,8 @@ def add_product(product, listings):
             price = product._safe_get_element_text(
                 'OfferSummary.LowestNewPrice.Amount')
             if price:
-                print "Price evaulated True"
-                print price
                 fprice = float(price) / 100 if 'JP' not in product.region else price
             else:
-                print "Price evaulated False"
-                print price
                 fprice = price
             listing[keyi] = fprice
             continue
@@ -149,6 +145,13 @@ def add_product(product, listings):
             listing[keyi] = product.__getattribute__(keyi)
         except:
             print("Attribute {0} not found".format(keyi))
+
+def compare_price(upc, listing):
+    session = db.session()
+    products = session.query(Product).filter(Product.upc == upc)
+    product = products.first()
+    if product:
+        listing['cost'] = product.primary_cost
 
 
 def get_jobid():
