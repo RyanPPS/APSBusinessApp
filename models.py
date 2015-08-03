@@ -25,14 +25,15 @@ class Listing(db.Model):
     """
     __tablename__ = 'listing'
 
-    asin = db.Column(db.String(), primary_key=True)
-    manufacturer = db.Column(db.String())
-    part_number = db.Column(db.String())
-    upc = db.Column(db.String(), db.ForeignKey('product.upc'))
-    products = db.relationship("Product", backref='Listing')
-    title = db.Column(db.String())
+    asin = db.Column(db.String, primary_key=True)
+    manufacturer = db.Column(db.String)
+    part_number = db.Column(db.String)
+    upc = db.Column(db.String)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
+    products = db.relationship("Product", backref='Listing', foreign_keys=[product_id])
+    title = db.Column(db.String)
     price = db.Column(db.Float)
-    currency = db.Column(db.String())
+    currency = db.Column(db.String)
     result_all = db.Column(JSON)
 
     # Add relationship: The ForeignKey below expresses that values in 
@@ -40,20 +41,6 @@ class Listing(db.Model):
     # values in the images.id column, i.e. its primary key.
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     images = db.relationship("Image", backref='Listing')
-    
-    def __init__(self, asin, result_all):
-        self.asin = asin
-        self.result_all = result_all
-        """
-        self.manufacturer = manufacturer
-        self.part_number = part_number
-        self.upc = upc
-        self.title = title
-        self.price = price
-        self.currency = currency
-        self.image_id = image_id
-        self.images = images
-        """
 
     def __repr__(self):
         return '<asin {}>'.format(self.asin)
@@ -71,20 +58,11 @@ class Image(db.Model):
     __tablename__ = 'image'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tiny_image = db.Column(db.String())
-    small_image = db.Column(db.String())
-    medium_image = db.Column(db.String())
-    large_image = db.Column(db.String())
-    """
-    def __init__(self, id, tiny_image, small_image, 
-            medium_image, large_image):
+    tiny_image = db.Column(db.String, unique=True)
+    small_image = db.Column(db.String)
+    medium_image = db.Column(db.String)
+    large_image = db.Column(db.String)
 
-        self.id = id
-        self.tiny_image = tiny_image
-        self.small_image = small_image
-        self.medium_image = medium_image
-        self.large_image = large_image
-    """
     def __repr__(self):
         return '<listing_asin {}>'.format(self.listing_asin)
 
@@ -93,7 +71,7 @@ class User(db.Model):
 
     :param str email: email address of user
     :param str password: encrypted password for the user
-
+    TODO: :param str role: role of user
     """
     __tablename__ = 'user'
 
@@ -136,27 +114,22 @@ class Product(db.Model):
     """
 
     __tablename__ = 'product'
-
-    upc = db.Column(db.String(), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    upc = db.Column(db.String)
     listings = db.relationship("Listing", backref='product')
-    manufacturer = db.Column(db.String())
-    part_number = db.Column(db.String())
-    title = db.Column(db.String())
+    manufacturer = db.Column(db.String)
+    part_number = db.Column(db.String)
+    title = db.Column(db.String)
     primary_cost = db.Column(db.Float)
     secondary_cost = db.Column(db.Float)
     available = db.Column(db.Boolean)
-    weight = db.Column(db.String())
-    height = db.Column(db.String())
-    width = db.Column(db.String())
-    length = db.Column(db.String())
+    weight = db.Column(db.String)
+    height = db.Column(db.String)
+    width = db.Column(db.String)
+    length = db.Column(db.String)
     # TODO: Create relationship to image
     #images = db.relationship("Image" backref='product')
     #image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
-    
-    """
-    def __init__(self, upc, manufacturer, part_number):
-        self.upc = upc
-    """
 
     def __repr__(self):
         return '<upc {}>'.format(self.upc)

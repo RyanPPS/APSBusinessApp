@@ -10,13 +10,18 @@ from models import Product, db
 with app.app_context():
     session = db.session()
     db.metadata.create_all(db.engine)
-    with open('scripts/zodiac_combined.json', 'Ur') as ifile:
+    with open('scripts/database_files/scp_cc_files/unicel_combined.json', 'Ur') as ifile:
         products = json.load(ifile)
         counter = 0
         for product in products:
             item = products[product]
-            price = item['price'].replace(',', '').replace('$', '')
-            fprice = float(price)
+            try:
+                price = item['price'].replace(',', '').replace('$', '')
+                fprice = float(price)
+            except AttributeError:
+                fprice = float(item['price'])
+            else:
+                fprice = item['price']
             try:
                 h, l, w = item['dimensions'].split('x')
             except:
@@ -38,12 +43,8 @@ with app.app_context():
                         height = h,
                         width = w,
                         length = l)
-
-            if session.query(Product).filter(Product.upc == p.upc).count() > 0:
-                print('{0} already exists'.format(p.upc))
-            else:
-                session.add(p)
-                session.commit()
-                counter += 1
+            session.add(p)
+            session.commit()
+            counter += 1
         print('{0} products added to database out of {1}.'.format(counter, len(products)))
             

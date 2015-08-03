@@ -41,6 +41,11 @@ def user_loader(user_id):
     """
     return User.query.get(user_id)
 
+@app.route('/')
+@login_required
+def home():
+    return render_template('index.html')
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """For GET requests, display the login form. 
@@ -71,12 +76,6 @@ def logout():
     logout_user()
     return render_template("logout.html")
 
-
-@app.route('/')
-@login_required
-def home():
-    return render_template('index.html')
-
 @app.route('/start', methods=['POST'])
 @login_required
 def start():
@@ -94,13 +93,13 @@ def itemsearch(manufacturer):
 
     :param str manufacturer: the manufacturer to search for.
     """
-    products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
     listings = {'count':'',
-                'products':{}}
+        'products':{}}
+    products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
     count = 0
     for product in products:
         count += 1
-        add_product(product, listings)
+        populate_listings(product)
     listings['count'] = count
     return jsonify(listings)
 
@@ -108,17 +107,24 @@ def itemsearch(manufacturer):
 @login_required
 def itemlookup(upc):
     listings = {'count':'',
-            'products':{'cost':0.0}}
+        'products':{}}
     products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
     for product in products:
-        add_product(product, listings)
+        populate_listings(product)
     return jsonify(listings)
 
-def add_product(product, listings):
-    asin = product.asin
-    listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
-    listing = listings['products'][asin]
-    compare_price(product.upc, listing)
+def populate_listings(product):
+    # configure the listings
+    listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
+    listing = listings['products'][product.asin]
+    if product.upc:
+        compare_price(product.upc, listing)
+    else:
+        print('{0} has no UPC.'.format(product.title))
+    add_product(product, listing)
+
+def add_product(product, listing):
+
     for keyi in listing.keys():
         #TODO: Extend AmazonProduct class to include LowestNewPrice
         # .. :temporary: extend AmazonProduct class
