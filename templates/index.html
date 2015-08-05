@@ -16,21 +16,36 @@
     <div class="container">
       <div class="row">
         <div class="col-sm-5 col-sm-offset-1">
-          <h1>Amazon Manufacturer Search</h1>
+          <h2>Search By Manufacturer</h2>
           <br>
-          <form role="form" ng-submit="getResults()">
+          <form role="form" ng-submit="getManufacturerResults()">
             <div class="form-group">
-              <input type="text" name="url" class="form-control" id="manufacturer-box" placeholder="Enter Manufacturer..." style="max-width: 300px;" ng-model="input_manufacturer" required>
+              <input type="text" name="manufacturer" class="form-control" id="manufacturer-box" placeholder="Enter Manufacturer..." style="max-width: 300px;" ng-model="input_manufacturer" required>
             </div>
             {% raw %}
-            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitButtonText }}</button>
+            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitManufacturerButtonText }}</button>
             {% endraw %}
           </form>
           <div class="alert alert-danger" role="alert" ng-show='manufacturerError'>
             <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
             <span class="sr-only">Error:</span>
             There was an error submitting your Manufacturer. Please check to make sure it is valid before trying again.
-        </div>
+          </div>
+          <h2>Search By UPC</h2>
+          <br>
+          <form role="form" ng-submit="getUPCResults()">
+            <div class="form-group">
+              <input type="text" name="upc" class="form-control" id="upc-box" placeholder="Enter UPC..." style="max-width: 300px;" ng-model="input_upc" required>
+            </div>
+            {% raw %}
+            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitUPCButtonText }}</button>
+            {% endraw %}
+          </form>
+          <div class="alert alert-danger" role="alert" ng-show='UPCError'>
+            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+            <span class="sr-only">Error:</span>
+            There was an error submitting your UPC code. Please check to make sure it is valid before trying again.
+          </div>
         </div>
         <div class="col-sm-5 col-sm-offset-1">
           {% raw %}
@@ -48,6 +63,7 @@
                 <th>Part Number</th>
                 <th>UPC</th>
                 <th>Price</th>
+                <th>Our Cost</th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +76,7 @@
                   <td>{{listing.part_number}}</td>
                   <td>{{listing.upc}}</td>
                   <td>{{listing.LowestNewPrice}}</td>
+                  <td>{{listing.cost}}</td>
               </tr>
             {% endraw %}
             </tbody>
