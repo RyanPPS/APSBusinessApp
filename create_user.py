@@ -15,6 +15,8 @@ def main():
             print 'A user already exists! Create another? (y/n):',
             create = raw_input()
             if create == 'n':
+                ryan = User.query.first()
+                print ryan.email
                 return
 
         print 'Enter email address: ',

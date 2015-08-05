@@ -13,9 +13,11 @@ from flask.ext.sqlalchemy import SQLAlchemy
 
 # Application
 from amazon.api import AmazonAPI, AmazonProduct
+from mws import mws
 from variables import LISTINGS_SCHEME
 from forms import LoginForm
 from models import Listing, User, Product, db
+
 
 # Flask configuration
 app = Flask(__name__)
@@ -27,11 +29,16 @@ bcrypt = Bcrypt(app)
 
 
 
-# Amazon product advertising API configuration
+# Amazon product advertising API (PAAPI) configuration
 amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
                     os.environ['AMAZON_SECRET_KEY'], 
                     os.environ['AMAZON_ASSOC_TAG'])
 
+# Amazon Marketplace Web Services API (MWS) configuration
+mws_marketplace = os.environ['MWS_MARKETPLACE_ID']
+mws_credentials =  {'access_key': os.environ['MWS_AWS_ACCESS_KEY_ID'], 
+        'seller_id': os.environ['MWS_SELLER_ID'], 
+        'secret_key': os.environ['MWS_SECRET_KEY']}
 
 @login_manager.user_loader
 def user_loader(user_id):
@@ -45,6 +52,16 @@ def user_loader(user_id):
 @login_required
 def home():
     return render_template('index.html')
+
+@app.route('/testmws')
+@login_required
+def testmws():
+    papi = mws.Products( access_key = mws_credentials['access_key'],
+                         account_id = mws_credentials['seller_id'],
+                         secret_key = mws_credentials['seller_id'])
+    products = papi.list_matching_products(mws_marketplace, 'unicel')
+    print(products)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
