@@ -58,7 +58,7 @@ def home():
 def testmws():
     papi = mws.Products( access_key = mws_credentials['access_key'],
                          account_id = mws_credentials['seller_id'],
-                         secret_key = mws_credentials['seller_id'])
+                         secret_key = mws_credentials['secret_key'])
     products = papi.list_matching_products(mws_marketplace, 'unicel')
     print(products)
 
@@ -116,7 +116,7 @@ def itemsearch(manufacturer):
     count = 0
     for product in products:
         count += 1
-        populate_listings(product)
+        populate_listings(product, listings)
     listings['count'] = count
     return jsonify(listings)
 
@@ -127,10 +127,10 @@ def itemlookup(upc):
         'products':{}}
     products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
     for product in products:
-        populate_listings(product)
+        populate_listings(product, listings)
     return jsonify(listings)
 
-def populate_listings(product):
+def populate_listings(product, listings):
     # configure the listings
     listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
     listing = listings['products'][product.asin]
