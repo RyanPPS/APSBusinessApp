@@ -1,18 +1,56 @@
 <!DOCTYPE html>
 <html ng-app="APSBusinessApp">
   <head>
-  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.13/angular.min.js"></script>
-  <script src="{{ url_for('static', filename='main.js') }}"></script>
     <title>APS Business Application</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <!-- customer footer css -->
+    <link rel="stylesheet" type="text/css" href="/static/styles/footer.css">
     <style>
-      .container {
-        max-width: 1000px;
+      section {
+          padding-bottom: 60px;
       }
     </style>
   </head>
+  <!-- Angular Application -->
   <body ng-controller="APSBusinessController">
+  <!-- Force footer to bottom with div#wrap -->
+  <div id="wrap">
+  <!-- Navigation -->
+  <nav id="navigation" class="navbar navbar-default navbar-static-top">
+    <div class="container">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+          <a class="navbar-brand" href="#">APS</a>
+      </div>
+      <div id="navbar" class="navbar-collapse collapse">
+        <ul class="nav navbar-nav navbar-right">
+          <li class="home">
+            <a href="#">Home</a>
+          </li>
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account <span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li>
+                <a href="/logout">Logout</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div><!--/.nav-collapse -->
+    </div><!--/.container -->
+  </nav>
+  <!-- end navbar -->
+  <!-- Input section -->
+  <section id="aps-app-calls">
     <div class="container">
       <div class="row">
         <div class="col-sm-5 col-sm-offset-1">
@@ -31,6 +69,8 @@
             <span class="sr-only">Error:</span>
             There was an error submitting your Manufacturer. Please check to make sure it is valid before trying again.
           </div>
+        </div>
+        <div class="col-sm-5 col-sm-offset-1">
           <h2>Search By UPC</h2>
           <br>
           <form role="form" ng-submit="getUPCResults()">
@@ -47,29 +87,37 @@
             There was an error submitting your UPC code. Please check to make sure it is valid before trying again.
           </div>
         </div>
-        <div class="col-sm-5 col-sm-offset-1">
-          {% raw %}
-          <h2 id='listingCount'>Listings: {{ listingCount }}</h2>
-          {% endraw %}
-          <br>
-        <div id="results">
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th></th>
-                <th>ASIN</th>
-                <th>Manufacturer</th>
-                <th>Title</th>
-                <th>Part Number</th>
-                <th>UPC</th>
-                <th>Price</th>
-                <th>Our Cost</th>
-              </tr>
-            </thead>
-            <tbody>
+      </div>
+    </div>
+  </section>
+  <!--end aps-app-calls Input section-->
+  <!-- Search Results -->
+  <section id="search-results">
+    <div class="container">
+      <div class="row">
+          <div class="col-full-length">
             {% raw %}
-              <tr ng-repeat="(asin, listing) in listings">
-                  <td><img src={{listing.imagelist.small_image_url}} alt={{listing.part_number}}></td>
+            <h2 id='listingCount'>Listings: {{ listingCount }}</h2>
+            {% endraw %}
+            <br>
+          <div id="results">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>ASIN</th>
+                  <th>Manufacturer</th>
+                  <th>Title</th>
+                  <th>Part Number</th>
+                  <th>UPC</th>
+                  <th>Price</th>
+                  <th>Our Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% raw %}
+                <tr ng-repeat="(asin, listing) in listings">
+                  <td><img ng-src={{listing.imagelist.small_image_url}} alt={{listing.part_number}}></td>
                   <td>{{asin}}</td>
                   <td>{{listing.manufacturer}}</td>
                   <td>{{listing.title}}</td>
@@ -77,16 +125,33 @@
                   <td>{{listing.upc}}</td>
                   <td>{{listing.LowestNewPrice}}</td>
                   <td>{{listing.cost}}</td>
-              </tr>
-            {% endraw %}
-            </tbody>
-          </table>
+                </tr>
+              {% endraw %}
+              </tbody>
+            </table>
+          </div>
+          {% raw %}
+          <img class="col-sm-3 col-sm-offset-4" ng-src="{{ url_for('static', filename='spinner.gif') }}" ng-show="loading">
+          {% endraw %}
         </div>
-        <img class="col-sm-3 col-sm-offset-4" src="{{ url_for('static', filename='spinner.gif') }}" ng-show="loading">
       </div>
     </div>
-    <br><br>
-    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+  </section>
+  <!--end search-results section-->
+  <!-- Push footer to the bottom. -->
+  <!-- TODO: Seems hacky. Find better solution.-->
+  <div id="push"></div>
+  </div>
+  {% include "footer.html" %}
+  <!-- jQuery -->
+  <script src="//code.jquery.com/jquery-1.11.2.min.js"></script>
+  <!-- Bootstrap -->
+  <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+  <!-- Angular -->
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.13/angular.min.js"></script>
+  <!-- throbber for loading -->
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
+
   </body>
+  
 </html>

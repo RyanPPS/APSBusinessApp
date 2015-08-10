@@ -1,3 +1,5 @@
+# All Pool Spa Business Application.
+
 # Python
 import json
 import os
@@ -17,7 +19,8 @@ from mws import mws
 from variables import LISTINGS_SCHEME
 from forms import LoginForm
 from models import Listing, User, Product, db
-
+from utils import dictHelper
+#from papi import Papi, Product, Listing
 
 # Flask configuration
 app = Flask(__name__)
@@ -25,6 +28,7 @@ app.config.from_object(os.environ['APP_SETTINGS'])
 db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
+login_manager.login_view = "login"
 bcrypt = Bcrypt(app)
 
 
@@ -56,11 +60,24 @@ def home():
 @app.route('/testmws')
 @login_required
 def testmws():
+    """Get missing Product information from Amazon's Product MWS Api.
+    Gets lowest price information.
+
+    TODO: Receive ASINs and make request for information to Amazon.
+
+    :..temporary: this is a test version.
+    """
+    print mws.Products
     papi = mws.Products( access_key = mws_credentials['access_key'],
                          account_id = mws_credentials['seller_id'],
-                         secret_key = mws_credentials['secret_key'])
-    products = papi.list_matching_products(mws_marketplace, 'unicel')
-    print(products)
+                         secret_key = mws_credentials['secret_key'],)
+    #products = papi.list_matching_products(mws_marketplace, 'unicel')
+    result = papi.get_lowest_offer_listings_for_asin(mws_marketplace, ['B000A4TDPO', 'B000BNM25W', 'B000BNM27U'], condition='New')
+    dproducts = result._mydict
+    p = Papi(dproducts)
+    for p in p.products:
+        print p.asin
+    return jsonify(dproducts)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -68,7 +85,7 @@ def login():
     """For GET requests, display the login form. 
     For POSTS, login the current userby processing the form.
     """
-    # TODO: I have no LoginForm. Get this.
+    # TODO: Make roles.
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -123,6 +140,12 @@ def itemsearch(manufacturer):
 @app.route('/itemlookup/<upc>', methods=['GET'])
 @login_required
 def itemlookup(upc):
+    """User can search Amazon's product listings by upc.
+
+    TODO: Enable multiple upc search.
+
+    :param str upc: the upc to search for.
+    """
     listings = {'count':'',
         'products':{}}
     products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
@@ -131,6 +154,11 @@ def itemlookup(upc):
     return jsonify(listings)
 
 def populate_listings(product, listings):
+    """Populate a listing with product attributes.
+
+    param obj product: a product from amazon paapi
+    param dict listing: dict representation of amazon listing
+    """
     # configure the listings
     listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
     listing = listings['products'][product.asin]
@@ -141,7 +169,11 @@ def populate_listings(product, listings):
     add_product(product, listing)
 
 def add_product(product, listing):
+    """Add product attributes to the listing.
 
+    param obj product: a product from amazon paapi
+    param dict listing: dict representation of amazon listing
+    """
     for keyi in listing.keys():
         #TODO: Extend AmazonProduct class to include LowestNewPrice
         # .. :temporary: extend AmazonProduct class
@@ -169,7 +201,15 @@ def add_product(product, listing):
         except:
             print("Attribute {0} not found".format(keyi))
 
+
 def compare_price(upc, listing):
+    """Compares price between lowest price for the product and our cost.
+
+    TODO: add price comparison functionality.
+
+    : ..temporary: currently just grabs our cost.
+    :param dict listing: a dictionary representation of a Listing
+    """
     session = db.session()
     products = session.query(Product).filter(Product.upc == upc)
     product = products.first()
@@ -178,9 +218,9 @@ def compare_price(upc, listing):
 
 
 def get_jobid():
-    # TODO: Add jobid when database is set up.
-    # TODO: Track who made the job.
     """Returns a *job.id* so we can keep track of each job and what it requested.
+    TODO: Add jobid when database is set up.
+    TODO: Track who made the job.
     """
     job = q.enqueue_call(
         func=itemsearch, args=(manufacturer,), result_ttl=5000
