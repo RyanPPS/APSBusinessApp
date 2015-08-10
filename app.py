@@ -20,7 +20,7 @@ from variables import LISTINGS_SCHEME
 from forms import LoginForm
 from models import Listing, User, Product, db
 from utils import dictHelper
-#from papi import Papi, Product, Listing
+import papi
 
 # Flask configuration
 app = Flask(__name__)
@@ -67,16 +67,13 @@ def testmws():
 
     :..temporary: this is a test version.
     """
-    print mws.Products
-    papi = mws.Products( access_key = mws_credentials['access_key'],
+    mws_products = mws.Products( access_key = mws_credentials['access_key'],
                          account_id = mws_credentials['seller_id'],
                          secret_key = mws_credentials['secret_key'],)
-    #products = papi.list_matching_products(mws_marketplace, 'unicel')
-    result = papi.get_lowest_offer_listings_for_asin(mws_marketplace, ['B000A4TDPO', 'B000BNM25W', 'B000BNM27U'], condition='New')
+    #products = mws_products.list_matching_products(mws_marketplace, 'unicel')
+    result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, ['B000A4TDPO', 'B000BNM25W', 'B000BNM27U'], condition='New')
     dproducts = result._mydict
     p = Papi(dproducts)
-    for p in p.products:
-        print p.asin
     return jsonify(dproducts)
 
 
@@ -146,6 +143,7 @@ def itemlookup(upc):
 
     :param str upc: the upc to search for.
     """
+    print upc
     listings = {'count':'',
         'products':{}}
     products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
