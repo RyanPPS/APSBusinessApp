@@ -46,42 +46,13 @@ mws_credentials =  {'access_key': os.environ['MWS_AWS_ACCESS_KEY_ID'],
         'seller_id': os.environ['MWS_SELLER_ID'], 
         'secret_key': os.environ['MWS_SECRET_KEY']}
 
-
 ###################
 # Route functions #
 ###################
-@login_manager.user_loader
-def user_loader(user_id):
-    """Given *user_id*, return the associated User object.
-
-    :param unicode user_id: user_id (email) user to retrieve
-    """
-    return User.query.get(user_id)
-
 @app.route('/')
 @login_required
 def home():
     return render_template('index.html')
-
-@app.route('/testmws')
-@login_required
-def testmws():
-    """Get missing Product information from Amazon's Product MWS Api.
-    Gets lowest price information.
-
-    TODO: Receive ASINs and make request for information to Amazon.
-
-    :..temporary: this is a test version.
-    """
-    mws_products = mws.Products( access_key = mws_credentials['access_key'],
-                         account_id = mws_credentials['seller_id'],
-                         secret_key = mws_credentials['secret_key'],)
-    #products = mws_products.list_matching_products(mws_marketplace, 'unicel')
-    result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, ['B000A4TDPO', 'B000BNM25W', 'B000BNM27U'], condition='New')
-    dproducts = result._mydict
-    p = Papi(dproducts)
-    return jsonify(dproducts)
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -130,11 +101,32 @@ def itemsearch(manufacturer):
 
     :param str manufacturer: the manufacturer to search for.
     """
-    print '#################################'
-    print '#################################'
-    print manufacturer
-    print '#################################'
-    print '#################################'
+    listings = paapi_search(manufacturer)
+    return jsonify(listings)
+
+@app.route('/itemlookup', methods=['GET', 'POST'])
+@login_required
+def itemlookup():
+    """User can search Amazon's product listings by upc."""
+    search_by = request.args.get('search_by')
+    user_input = request.args.get('user_input')
+    if not search_by:
+        # TODO: Add warning: user needs to select search by criteria
+        return render_template('index.html')
+    listings = paapi_lookup(search_by, user_input)
+    return jsonify(listings)
+
+def paapi_lookup(search_by, user_input, listings):
+    listings = {'count':'',
+                'products':{}}
+    products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
+    try:
+        for product in products:
+            populate_listings(product, listings)
+    except:
+        populate_listings(products, listings)
+
+def paapi_search():
     listings = {'count':'',
         'products':{}}
     products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
@@ -143,35 +135,75 @@ def itemsearch(manufacturer):
         count += 1
         populate_listings(product, listings)
     listings['count'] = count
-    return jsonify(listings)
 
-@app.route('/itemlookup', methods=['GET', 'POST'])
+
 @login_required
-def itemlookup():
-    """User can search Amazon's product listings by upc.
-
-    TODO: Enable multiple upc search.
-
-    :param str upc: the upc to search for.
+def search_db():
+    """User can specify what items to lookup on Amazon from the database.
+    User can choose manufacturer and a price range. 
+    Price range is optional.
     """
-    search_by = request.args.get('search_by')
-    user_input = request.args.get('user_input')
-    if not search_by:
-        flash('Please select a search by criteria.')
-        return render_template('index.html')
-    listings = {'count':'',
-        'products':{}}
-    products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
-    try:
-        for product in products:
-            populate_listings(product, listings)
-    except:
-        populate_listings(products, listings)
-    return jsonify(listings)
+    session = db.session()
+    products = session.query(Product).filter(Product.manufacturer == manufacturer, 
+                                            Product.primary_price <= price).all()
+    upclist = []
+    part_numberlist = []
+    for product in products:
+        if product.upc:
+            upclist.append(product.upc)
+        elif product.part_number:
+            part_numberlist.append(product.part_number)
+
+    upcs = len(upclist)
+    beg = 0
+    end = 19
+    upc_sections = []
+    while end < (upcs - 1):
+        if beg == end:
+            upc_sections.append(upclist[beg])
+        else:
+            upc_sections.append.(', '.join(upclist[beg:end]))
+        if (end + 1) <= (upcs - 1): 
+            beg = end + 1
+        if end > upcs - 1:
+            end = upcs - 1
+        else:
+            end = end + 20
+
+    part_numbers = len(part_numberlist)
+    beg = 0
+    end = 19
+    pn_sections = []
+    while end < (part_numbers - 1):
+        if beg == end:
+            pn_sections.append(part_numberlist[beg])
+        else:
+            pn_sections.append.(', '.join(part_numberlist[beg:end]))
+        if (end + 1) <= (part_numbers - 1): 
+            beg = end + 1
+        if end > part_numbers - 1:
+            end = part_numbers - 1
+        else:
+            end = end + 20
+    # TODO: I need to send a list of 20 searchs at a time until end of lists.
+    # TODO: I need to then send them (20 at a time) to mws using the asin
+    # I get from the paapi search
+
+
+    
+
 
 ####################
 # Helper functions #
 ####################
+@login_manager.user_loader
+def user_loader(user_id):
+    """Given *user_id*, return the associated User object.
+
+    :param unicode user_id: user_id (email) user to retrieve
+    """
+    return User.query.get(user_id)
+
 def populate_listings(product, listings):
     """Populate a listing with product attributes.
 
@@ -184,7 +216,7 @@ def populate_listings(product, listings):
     add_product(product, listing)
     if product.upc:
         compare_price(product.upc, listing)
-        get_lowest_price(product.asin, listing)
+        set_lowest_prices(product.asin, listing)
     else:
         print('{0} has no UPC.'.format(product.title))   
 
@@ -234,7 +266,7 @@ def mws_request(asin):
         result =  mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
     return result
 
-def get_lowest_price(asin, listing):
+def set_lowest_prices(asin, listing):
     # Get response from Amazon's MWS api.
     result = mws_request(asin)
     # Get products from mws response.
@@ -267,6 +299,12 @@ def get_lowest_price(asin, listing):
         set_seller(product, listing)
 
 def set_seller(product, listing):
+    """Sellers are either Merchants or Amazon. 
+    This identifies the fulfillment method. FBA or FBM
+
+    :param obj product: product sold on Amazon
+    :param obj listing: listing associated with *product*
+    """
     for l in product.listings:
         if l.lowest_price or l.price == product.lowest_price:
             listing['seller'] = l.seller
@@ -285,6 +323,7 @@ def compare_price(upc, listing):
     product = products.first()
     if product:
         listing['cost'] = product.primary_cost
+
 
 
 def get_jobid():
