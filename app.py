@@ -3,10 +3,11 @@
 # Python
 import json
 import os
+import sys
 from copy import deepcopy
 
 # Extensions
-from flask import (Flask, Response, render_template, request, \
+from flask import (Flask, flash, Response, render_template, request, \
                 redirect, jsonify, url_for)
 from flask.ext.bcrypt import Bcrypt
 from flask.ext.login import (LoginManager, login_required, \
@@ -14,13 +15,14 @@ from flask.ext.login import (LoginManager, login_required, \
 from flask.ext.sqlalchemy import SQLAlchemy
 
 # Application
+import papi
 from amazon.api import AmazonAPI, AmazonProduct
 from mws import mws
 from variables import LISTINGS_SCHEME
 from forms import LoginForm
 from models import Listing, User, Product, db
 from utils import dictHelper
-import papi
+
 
 # Flask configuration
 app = Flask(__name__)
@@ -44,6 +46,10 @@ mws_credentials =  {'access_key': os.environ['MWS_AWS_ACCESS_KEY_ID'],
         'seller_id': os.environ['MWS_SELLER_ID'], 
         'secret_key': os.environ['MWS_SECRET_KEY']}
 
+
+###################
+# Route functions #
+###################
 @login_manager.user_loader
 def user_loader(user_id):
     """Given *user_id*, return the associated User object.
@@ -112,7 +118,7 @@ def logout():
 def start():
     # TODO: Add jobid when database is set up.
     data = json.loads(request.data.decode())
-    return data["user_input"]
+    return jsonify(data)
 
 @app.route('/itemsearch/<manufacturer>', methods=['GET'])
 @login_required
@@ -124,6 +130,11 @@ def itemsearch(manufacturer):
 
     :param str manufacturer: the manufacturer to search for.
     """
+    print '#################################'
+    print '#################################'
+    print manufacturer
+    print '#################################'
+    print '#################################'
     listings = {'count':'',
         'products':{}}
     products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
@@ -134,23 +145,33 @@ def itemsearch(manufacturer):
     listings['count'] = count
     return jsonify(listings)
 
-@app.route('/itemlookup/<upc>', methods=['GET'])
+@app.route('/itemlookup', methods=['GET', 'POST'])
 @login_required
-def itemlookup(upc):
+def itemlookup():
     """User can search Amazon's product listings by upc.
 
     TODO: Enable multiple upc search.
 
     :param str upc: the upc to search for.
     """
-    print upc
+    search_by = request.args.get('search_by')
+    user_input = request.args.get('user_input')
+    if not search_by:
+        flash('Please select a search by criteria.')
+        return render_template('index.html')
     listings = {'count':'',
         'products':{}}
-    products = amazon.lookup(ItemId=upc, IdType='UPC', SearchIndex='LawnAndGarden')
-    for product in products:
-        populate_listings(product, listings)
+    products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
+    try:
+        for product in products:
+            populate_listings(product, listings)
+    except:
+        populate_listings(products, listings)
     return jsonify(listings)
 
+####################
+# Helper functions #
+####################
 def populate_listings(product, listings):
     """Populate a listing with product attributes.
 
@@ -160,11 +181,12 @@ def populate_listings(product, listings):
     # configure the listings
     listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
     listing = listings['products'][product.asin]
+    add_product(product, listing)
     if product.upc:
         compare_price(product.upc, listing)
+        get_lowest_price(product.asin, listing)
     else:
-        print('{0} has no UPC.'.format(product.title))
-    add_product(product, listing)
+        print('{0} has no UPC.'.format(product.title))   
 
 def add_product(product, listing):
     """Add product attributes to the listing.
@@ -179,12 +201,14 @@ def add_product(product, listing):
             price = product._safe_get_element_text(
                 'OfferSummary.LowestNewPrice.Amount')
             if price:
-                fprice = float(price) / 100 if 'JP' not in product.region else price
+                try:
+                    fprice = float(price) / 100 if 'JP' not in product.region else price
+                except:
+                    fprice = price
             else:
                 fprice = price
             listing[keyi] = fprice
             continue
-
         # images go in imagelist    
         if isinstance(listing[keyi], dict):
             for keyj in listing[keyi].keys():
@@ -198,6 +222,54 @@ def add_product(product, listing):
             listing[keyi] = product.__getattribute__(keyi)
         except:
             print("Attribute {0} not found".format(keyi))
+
+def mws_request(asin):
+    mws_products = mws.Products( access_key = mws_credentials['access_key'],
+                         account_id = mws_credentials['seller_id'],
+                         secret_key = mws_credentials['secret_key'],)
+    result =  []
+    if isinstance(asin, list):
+        result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, asin, condition='New')
+    else:
+        result =  mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
+    return result
+
+def get_lowest_price(asin, listing):
+    # Get response from Amazon's MWS api.
+    result = mws_request(asin)
+    # Get products from mws response.
+    dproducts = result._mydict
+    mypapi = papi.Papi(dproducts)
+    for product in mypapi.products:
+        if product.asin == asin:
+            lowest_price = product.lowest_price
+            lowest_fba_price = product.lowest_fba_price
+            if lowest_price:
+                try:
+                    price = float(lowest_price)
+                    listing['lowest_price'] = price
+                except ValueError:
+                    # unable to convert price to float
+                    # just send str
+                    listing['lowest_price'] = lowest_price
+                    print('Unable to convert price for {0}'.format(asin))
+            if lowest_fba_price:
+                try:
+                    listing['lowest_fba_price'] = float(lowest_fba_price)
+                except ValueError:
+                    # Unable to convert fba price.
+                    # Just send the string.
+                    listing['lowest_fba_price'] = lowest_fba_price
+                    print('Unable to convert FBA price for {0}'.format(asin))
+            else:
+                print('No FBA price available for {0}.'.format(asin))
+                listing['lowest_fba_price'] = 'N/A'
+        set_seller(product, listing)
+
+def set_seller(product, listing):
+    for l in product.listings:
+        if l.lowest_price or l.price == product.lowest_price:
+            listing['seller'] = l.seller
 
 
 def compare_price(upc, listing):

@@ -20,7 +20,7 @@
 <section id="login">
     <div class="container">
         <div class="row">
-            <div class="col-md-6 col-md-offset-3">
+            <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
             {% block content %}
                 <form method="POST" action="/login">
                 <div class="form-group">
@@ -33,7 +33,8 @@
                     <br>
                     {{ form.password(size=75) }}
                     <br>
-                    <input type="submit" value="Login">
+                    <br>
+                    <button type="submit" class="btn btn-primary btn-lg center-block" value="Login">Login</button>
                 </div>
                 </form>
             {% endblock %}

@@ -18,6 +18,11 @@ class testPapi(object):
 
     
 
+class testViews(object):
+
+    def test(self):
+        pass
+
 
 
 

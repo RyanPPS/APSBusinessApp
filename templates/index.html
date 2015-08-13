@@ -9,10 +9,8 @@
     <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
     <!-- customer footer css -->
     <link rel="stylesheet" type="text/css" href="/static/styles/footer.css">
+    <link rel="stylesheet" type="text/css" href="/static/styles/index.css">
     <style>
-      section {
-          padding-bottom: 60px;
-      }
     </style>
   </head>
   <!-- Angular Application -->
@@ -29,7 +27,10 @@
           <span class="icon-bar"></span>
           <span class="icon-bar"></span>
         </button>
-          <a class="navbar-brand" href="#">APS</a>
+          <a class="navbar-brand" href="#">
+          <img style="max-width:100px; margin-top: -3px;"
+             src="/static/logos/fits_logo_sm.png">
+          </a>
       </div>
       <div id="navbar" class="navbar-collapse collapse">
         <ul class="nav navbar-nav navbar-right">
@@ -53,38 +54,35 @@
   <section id="aps-app-calls">
     <div class="container">
       <div class="row">
-        <div class="col-sm-5 col-sm-offset-1">
-          <h2>Search By Manufacturer</h2>
-          <br>
-          <form role="form" ng-submit="getManufacturerResults()">
-            <div class="form-group">
-              <input type="text" name="manufacturer" class="form-control" id="manufacturer-box" placeholder="Enter Manufacturer..." style="max-width: 300px;" ng-model="input_manufacturer" required>
+        <div class="col-md-12">
+          <h2 id="search-by-heading2" class="text-center">Discover</h2> 
+          <div class="input-group" id="adv-search">
+            <input type="text" name="main-search" ng-model="input_search" class="form-control" placeholder="Select your search by criteria..." />
+            <div class="input-group-btn">
+              <div class="btn-group" role="group">
+                <div class="dropdown dropdown-lg">
+                  <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false"><span class="glyphicon glyphicon-chevron-down"></span></button>
+                  <div class="dropdown-menu dropdown-menu-right" role="menu">
+                    <form class="form-horizontal" role="form">
+                      <div class="form-group">
+                        <label for="filter">Search by</label>
+                        {% raw %}
+                        <select class="form-control" ng-model="searchby" ng-change="searchBy()">
+                          <option value="UPC" selected>UPC</option>
+                          <option value="SKU">SKU</option>
+                          <option value="ASIN">ASIN</option>
+                          <option value="OEM">OEM</option>
+                          <option value="Manufacturer">Manufacturer</option>
+                        </select>
+                        {% endraw %}
+                      </div>
+                    <button type="submit" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
+                    </form>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
+              </div>
             </div>
-            {% raw %}
-            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitManufacturerButtonText }}</button>
-            {% endraw %}
-          </form>
-          <div class="alert alert-danger" role="alert" ng-show='manufacturerError'>
-            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
-            <span class="sr-only">Error:</span>
-            There was an error submitting your Manufacturer. Please check to make sure it is valid before trying again.
-          </div>
-        </div>
-        <div class="col-sm-5 col-sm-offset-1">
-          <h2>Search By UPC</h2>
-          <br>
-          <form role="form" ng-submit="getUPCResults()">
-            <div class="form-group">
-              <input type="text" name="upc" class="form-control" id="upc-box" placeholder="Enter UPC..." style="max-width: 300px;" ng-model="input_upc" required>
-            </div>
-            {% raw %}
-            <button type="submit" class="btn btn-primary" ng-disabled="loading">{{ submitUPCButtonText }}</button>
-            {% endraw %}
-          </form>
-          <div class="alert alert-danger" role="alert" ng-show='UPCError'>
-            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
-            <span class="sr-only">Error:</span>
-            There was an error submitting your UPC code. Please check to make sure it is valid before trying again.
           </div>
         </div>
       </div>
@@ -110,7 +108,10 @@
                   <th>Title</th>
                   <th>Part Number</th>
                   <th>UPC</th>
+                  <th>Sales Rank</th>
+                  <th>Seller</th>
                   <th>Price</th>
+                  <th>FBA Price</th>
                   <th>Our Cost</th>
                 </tr>
               </thead>
@@ -119,11 +120,14 @@
                 <tr ng-repeat="(asin, listing) in listings">
                   <td><img ng-src={{listing.imagelist.small_image_url}} alt={{listing.part_number}}></td>
                   <td>{{asin}}</td>
-                  <td>{{listing.manufacturer}}</td>
+                  <td>{{listing.brand}}</td>
                   <td>{{listing.title}}</td>
                   <td>{{listing.part_number}}</td>
                   <td>{{listing.upc}}</td>
-                  <td>{{listing.LowestNewPrice}}</td>
+                  <td>{{listing.sales_rank}}</td>
+                  <td>{{listing.seller}}</td>
+                  <td>{{listing.lowest_price}}</td>
+                  <td>{{listing.lowest_fba_price}}</td>
                   <td>{{listing.cost}}</td>
                 </tr>
               {% endraw %}
