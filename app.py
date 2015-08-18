@@ -125,6 +125,7 @@ def paapi_lookup(search_by, user_input, listings):
             populate_listings(product, listings)
     except:
         populate_listings(products, listings)
+    return listings
 
 def paapi_search():
     listings = {'count':'',
@@ -135,9 +136,10 @@ def paapi_search():
         count += 1
         populate_listings(product, listings)
     listings['count'] = count
+    return listings
 
 
-@login_required
+
 def search_db():
     """User can specify what items to lookup on Amazon from the database.
     User can choose manufacturer and a price range. 
