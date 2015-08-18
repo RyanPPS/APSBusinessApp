@@ -162,7 +162,7 @@ def search_db():
         if beg == end:
             upc_sections.append(upclist[beg])
         else:
-            upc_sections.append.(', '.join(upclist[beg:end]))
+            upc_sections.append(', '.join(upclist[beg:end]))
         if (end + 1) <= (upcs - 1): 
             beg = end + 1
         if end > upcs - 1:
@@ -178,7 +178,7 @@ def search_db():
         if beg == end:
             pn_sections.append(part_numberlist[beg])
         else:
-            pn_sections.append.(', '.join(part_numberlist[beg:end]))
+            pn_sections.append(', '.join(part_numberlist[beg:end]))
         if (end + 1) <= (part_numbers - 1): 
             beg = end + 1
         if end > part_numbers - 1:
