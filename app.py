@@ -120,10 +120,10 @@ def paapi_lookup(search_by, user_input, listings):
     listings = {'count':'',
                 'products':{}}
     products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
-    try:
+    if isinstance(products, list):
         for product in products:
             populate_listings(product, listings)
-    except:
+    else:
         populate_listings(products, listings)
     return listings
 
