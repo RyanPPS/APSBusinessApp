@@ -127,7 +127,7 @@ def paapi_lookup(search_by, user_input, listings):
         populate_listings(products, listings)
     return listings
 
-def paapi_search():
+def paapi_search(manufacturer):
     listings = {'count':'',
         'products':{}}
     products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
