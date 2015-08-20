@@ -57,7 +57,7 @@
         <div class="col-md-12">
           <h2 id="search-by-heading2" class="text-center">Discover</h2> 
           <div class="input-group" id="adv-search">
-            <input type="text" name="main-search" ng-model="input_search" class="form-control" placeholder="Select your search by criteria..." />
+            <input type="text" name="main-search" ng-model="input_search" class="form-control search-criteria" placeholder="Select your search by criteria..." />
             <div class="input-group-btn">
               <div class="btn-group" role="group">
                 <div class="dropdown dropdown-lg">
@@ -69,14 +69,14 @@
                         {% raw %}
                         <select class="form-control" ng-model="searchby" ng-change="searchBy()">
                           <option value="UPC" selected>UPC</option>
-                          <option value="SKU">SKU</option>
+                          <option value="Price">Price</option>
                           <option value="ASIN">ASIN</option>
-                          <option value="OEM">OEM</option>
+                           <!--TODO: need to add OEM/SKU-->
                           <option value="Manufacturer">Manufacturer</option>
                         </select>
+                        <input type="text" name="main-search" ng-model="manufacturer" class="form-control manufacturer-input" placeholder="Type a manufacturer" />
                         {% endraw %}
                       </div>
-                    <button type="submit" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
                     </form>
                   </div>
                 </div>
@@ -135,7 +135,7 @@
             </table>
           </div>
           {% raw %}
-          <img class="col-sm-3 col-sm-offset-4" ng-src="{{ url_for('static/images', filename='spinner.gif') }}" ng-show="loading">
+          <img class="col-sm-3 col-sm-offset-4" src="/static/images/spinner.gif" ng-show="loading">
           {% endraw %}
         </div>
       </div>

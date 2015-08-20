@@ -113,19 +113,35 @@ def itemlookup():
     if not search_by:
         # TODO: Add warning: user needs to select search by criteria
         return render_template('index.html')
-    listings = paapi_lookup(search_by, user_input)
+    listings = {'count':'',
+            'products':{}}
+    paapi_lookup(search_by, user_input, listings)
+    return jsonify(listings)
+
+@app.route('/price_range_search')
+@login_required
+def price_range_search():
+    try:
+        price_low, price_high = request.args.get('user_input').replace(' ','').split(',')
+        manufacturer = request.args.get('manufacturer')
+        flow, fhigh = float(price_low), float(price_high)
+    except:
+        return render_template('index.html')
+    upc_sectioned_list = search_db(manufacturer, flow, fhigh)
+    listings = {'count':'',
+        'products':{}}
+    for upcs in upc_sectioned_list:
+        paapi_lookup('UPC', upcs, listings)
+        print len(listings['products'])
     return jsonify(listings)
 
 def paapi_lookup(search_by, user_input, listings):
-    listings = {'count':'',
-                'products':{}}
     products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
     if isinstance(products, list):
         for product in products:
             populate_listings(product, listings)
     else:
         populate_listings(products, listings)
-    return listings
 
 def paapi_search(manufacturer):
     listings = {'count':'',
@@ -140,14 +156,16 @@ def paapi_search(manufacturer):
 
 
 
-def search_db():
+def search_db(manufacturer, price_low, price_high):
     """User can specify what items to lookup on Amazon from the database.
     User can choose manufacturer and a price range. 
     Price range is optional.
     """
+    manufacturer = '%' + manufacturer + '%'
     session = db.session()
-    products = session.query(Product).filter(Product.manufacturer == manufacturer, 
-                                            Product.primary_price <= price).all()
+    products = session.query(Product).filter(Product.manufacturer.ilike(manufacturer), 
+                                            Product.primary_cost >= price_low,
+                                            Product.primary_cost <= price_high).all()
     upclist = []
     part_numberlist = []
     for product in products:
@@ -158,7 +176,7 @@ def search_db():
 
     upcs = len(upclist)
     beg = 0
-    end = 19
+    end = 9
     upc_sections = []
     while end < (upcs - 1):
         if beg == end:
@@ -170,11 +188,11 @@ def search_db():
         if end > upcs - 1:
             end = upcs - 1
         else:
-            end = end + 20
+            end = end + 10
 
     part_numbers = len(part_numberlist)
     beg = 0
-    end = 19
+    end = 9
     pn_sections = []
     while end < (part_numbers - 1):
         if beg == end:
@@ -186,10 +204,12 @@ def search_db():
         if end > part_numbers - 1:
             end = part_numbers - 1
         else:
-            end = end + 20
+            end = end + 10
     # TODO: I need to send a list of 20 searchs at a time until end of lists.
     # TODO: I need to then send them (20 at a time) to mws using the asin
     # I get from the paapi search
+    print '# of Sections', len(upc_sections)
+    return upc_sections
 
 
     
