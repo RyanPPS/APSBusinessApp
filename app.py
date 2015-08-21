@@ -116,6 +116,7 @@ def start():
     return jsonify(data)
 
 @app.route("/results/<job_key>", methods=['GET'])
+@login_required
 def get_results(job_key):
     job = Job.fetch(job_key, connection=conn)
     #print dir(job)
@@ -146,9 +147,6 @@ def _add_results_to_db(listings):
             return {"error": errors}
 
 
-
-#@app.route('/itemsearch/<manufacturer>', methods=['GET'])
-#@login_required
 def itemsearch(manufacturer):
     """User can search Amazon's product listings by manufacturer.
 
@@ -161,8 +159,7 @@ def itemsearch(manufacturer):
     listings = paapi_search(manufacturer)
     return _add_results_to_db(listings)
 
-#@app.route('/itemlookup', methods=['GET', 'POST'])
-#@login_required
+
 def itemlookup(search_by, user_input):
     """User can search Amazon's product listings by upc."""
     listings = {'count':'',
@@ -170,8 +167,7 @@ def itemlookup(search_by, user_input):
     paapi_lookup(search_by, user_input, listings)
     return _add_results_to_db(listings)
 
-#@app.route('/price_range_search')
-#@login_required
+
 def price_range_search(user_input, manufacturer):
     price_low, price_high = user_input.replace(' ','').split(',')
     flow, fhigh = float(price_low), float(price_high)
