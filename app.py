@@ -135,6 +135,7 @@ def get_results(job_key):
 
 def _add_results_to_db(listings):
     with app.app_context():
+        errors = []
         try:
             result = Result(
                 result_all=listings,
