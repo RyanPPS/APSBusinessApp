@@ -20,9 +20,11 @@ from amazon.api import AmazonAPI, AmazonProduct
 from mws import mws
 from variables import LISTINGS_SCHEME
 from forms import LoginForm
-from models import Listing, User, Product, db
+from models import Listing, User, Product, Result, db
 from utils import dictHelper
-
+from rq import Queue
+from rq.job import Job
+from worker import conn
 
 # Flask configuration
 app = Flask(__name__)
@@ -32,6 +34,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 bcrypt = Bcrypt(app)
+q = Queue(connection=conn)
 
 
 
@@ -87,12 +90,65 @@ def logout():
 @app.route('/start', methods=['POST'])
 @login_required
 def start():
-    # TODO: Add jobid when database is set up.
+    """Returns a *job.id* so we can keep track of each job and what it requested.
+    TODO: Add jobid when database is set up.
+    TODO: Track who made the job.
+    """
     data = json.loads(request.data.decode())
+    search_by = data['search_by']
+    user_input = data['user_input']
+    manufacturer = ''
+    if 'manufacturer' in data:
+        manufacturer = data['manufacturer']
+    if search_by == 'Manufacturer':
+        job = q.enqueue_call(
+            func=itemsearch, args=(user_input,), result_ttl=5000
+        )
+    elif search_by == 'UPC' or search_by == 'ASIN':
+        job = q.enqueue_call(
+            func=itemlookup, args=(search_by, user_input,), result_ttl=5000
+        )
+    elif search_by == 'Price' and manufacturer:
+        job = q.enqueue_call(
+            func=price_range_search, args=(user_input, manufacturer,), result_ttl=5000
+        ) 
+    data['jobid'] = job.get_id() 
     return jsonify(data)
 
-@app.route('/itemsearch/<manufacturer>', methods=['GET'])
-@login_required
+@app.route("/results/<job_key>", methods=['GET'])
+def get_results(job_key):
+    job = Job.fetch(job_key, connection=conn)
+    #print dir(job)
+    if job.is_finished:
+        result = Result.query.filter_by(id=job.result).first()
+        print(result)
+        return jsonify(result.result_all)
+    elif job.is_failed:
+        print job.is_queued, job.is_started
+        print job.status
+        return 'Failed', 500
+    else:
+        return "Nay!", 202
+    return 'Returning something'
+
+
+def _add_results_to_db(listings):
+    with app.app_context():
+        try:
+            result = Result(
+                result_all=listings,
+            )
+            db.session.add(result)
+            db.session.commit()
+            return result.id
+        except:
+            errors.append("Unable to add item to database.")
+            return {"error": errors}
+
+
+
+#@app.route('/itemsearch/<manufacturer>', methods=['GET'])
+#@login_required
 def itemsearch(manufacturer):
     """User can search Amazon's product listings by manufacturer.
 
@@ -101,47 +157,43 @@ def itemsearch(manufacturer):
 
     :param str manufacturer: the manufacturer to search for.
     """
+    print 'here'
     listings = paapi_search(manufacturer)
-    return jsonify(listings)
+    return _add_results_to_db(listings)
 
-@app.route('/itemlookup', methods=['GET', 'POST'])
-@login_required
-def itemlookup():
+#@app.route('/itemlookup', methods=['GET', 'POST'])
+#@login_required
+def itemlookup(search_by, user_input):
     """User can search Amazon's product listings by upc."""
-    search_by = request.args.get('search_by')
-    user_input = request.args.get('user_input')
-    if not search_by:
-        # TODO: Add warning: user needs to select search by criteria
-        return render_template('index.html')
     listings = {'count':'',
             'products':{}}
     paapi_lookup(search_by, user_input, listings)
-    return jsonify(listings)
+    return _add_results_to_db(listings)
 
-@app.route('/price_range_search')
-@login_required
-def price_range_search():
-    try:
-        price_low, price_high = request.args.get('user_input').replace(' ','').split(',')
-        manufacturer = request.args.get('manufacturer')
-        flow, fhigh = float(price_low), float(price_high)
-    except:
-        return render_template('index.html')
+#@app.route('/price_range_search')
+#@login_required
+def price_range_search(user_input, manufacturer):
+    price_low, price_high = user_input.replace(' ','').split(',')
+    flow, fhigh = float(price_low), float(price_high)
     upc_sectioned_list = search_db(manufacturer, flow, fhigh)
     listings = {'count':'',
         'products':{}}
     for upcs in upc_sectioned_list:
         paapi_lookup('UPC', upcs, listings)
         print len(listings['products'])
-    return jsonify(listings)
+    return _add_results_to_db(listings)
 
 def paapi_lookup(search_by, user_input, listings):
-    products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
+    if search_by == 'UPC':
+        products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
+    elif search_by == 'ASIN':
+        products = amazon.lookup(ItemId=user_input, IdType=search_by)
     if isinstance(products, list):
         for product in products:
             populate_listings(product, listings)
     else:
         populate_listings(products, listings)
+
 
 def paapi_search(manufacturer):
     listings = {'count':'',
@@ -162,10 +214,11 @@ def search_db(manufacturer, price_low, price_high):
     Price range is optional.
     """
     manufacturer = '%' + manufacturer + '%'
-    session = db.session()
-    products = session.query(Product).filter(Product.manufacturer.ilike(manufacturer), 
-                                            Product.primary_cost >= price_low,
-                                            Product.primary_cost <= price_high).all()
+    with app.app_context():
+        session = db.session()
+        products = session.query(Product).filter(Product.manufacturer.ilike(manufacturer), 
+                                                Product.primary_cost >= price_low,
+                                                Product.primary_cost <= price_high).all()
     upclist = []
     part_numberlist = []
     for product in products:
@@ -240,7 +293,8 @@ def populate_listings(product, listings):
         compare_price(product.upc, listing)
         set_lowest_prices(product.asin, listing)
     else:
-        print('{0} has no UPC.'.format(product.title))   
+        print('{0} has no UPC.'.format(product.title))  
+ 
 
 def add_product(product, listing):
     """Add product attributes to the listing.
@@ -276,6 +330,7 @@ def add_product(product, listing):
             listing[keyi] = product.__getattribute__(keyi)
         except:
             print("Attribute {0} not found".format(keyi))
+
 
 def mws_request(asin):
     mws_products = mws.Products( access_key = mws_credentials['access_key'],
@@ -319,6 +374,7 @@ def set_lowest_prices(asin, listing):
                 print('No FBA price available for {0}.'.format(asin))
                 listing['lowest_fba_price'] = 'N/A'
         set_seller(product, listing)
+    
 
 def set_seller(product, listing):
     """Sellers are either Merchants or Amazon. 
@@ -332,6 +388,7 @@ def set_seller(product, listing):
             listing['seller'] = l.seller
 
 
+
 def compare_price(upc, listing):
     """Compares price between lowest price for the product and our cost.
 
@@ -340,24 +397,12 @@ def compare_price(upc, listing):
     : ..temporary: currently just grabs our cost.
     :param dict listing: a dictionary representation of a Listing
     """
-    session = db.session()
-    products = session.query(Product).filter(Product.upc == upc)
-    product = products.first()
-    if product:
-        listing['cost'] = product.primary_cost
-
-
-
-def get_jobid():
-    """Returns a *job.id* so we can keep track of each job and what it requested.
-    TODO: Add jobid when database is set up.
-    TODO: Track who made the job.
-    """
-    job = q.enqueue_call(
-        func=itemsearch, args=(manufacturer,), result_ttl=5000
-    )
-    # return created job id
-    return job.get_id()
+    with app.app_context():
+        session = db.session()
+        products = session.query(Product).filter(Product.upc == upc)
+        product = products.first()
+        if product:
+            listing['cost'] = product.primary_cost
 
 
 
