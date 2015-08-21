@@ -60,7 +60,7 @@
             <input type="text" name="main-search" ng-model="input_search" class="form-control search-criteria" placeholder="Select your search by criteria..." />
             <div class="input-group-btn">
               <div class="btn-group" role="group">
-                <div class="dropdown dropdown-lg">
+                <div id="dropdown-searchby" class="dropdown dropdown-lg">
                   <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false"><span class="glyphicon glyphicon-chevron-down"></span></button>
                   <div class="dropdown-menu dropdown-menu-right" role="menu">
                     <form class="form-horizontal" role="form">
@@ -80,7 +80,7 @@
                     </form>
                   </div>
                 </div>
-                <button type="submit" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
+                <button type="submit" id="searchby-main-button" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
               </div>
             </div>
           </div>
@@ -94,6 +94,9 @@
     <div class="container">
       <div class="row">
           <div class="col-full-length">
+              {% for message in get_flashed_messages() %}
+              <p style="color: red;">{{ message }}</p>
+              {% endfor %}
             {% raw %}
             <h2 id='listingCount'>Listings: {{ listingCount }}</h2>
             {% endraw %}

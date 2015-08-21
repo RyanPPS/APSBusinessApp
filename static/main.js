@@ -30,7 +30,7 @@
     $http.post('/start', request).
           success(function(results) {
             $log.log(results);
-            getSearchResults(results);
+            getSearchResults(results['jobid']);
             $scope.listings = null;
             $scope.loading = true;
             $scope.submitInfoButtonText = "Loading...";
@@ -40,7 +40,38 @@
           });
     };
 
-    function getSearchResults(search) {
+    function getSearchResults(jobid) {
+
+        var timeout = "";
+        
+        var poller = function() {
+          $http.get('/results/'+jobid ).
+          success(function(data, status, headers, config) {
+            if(status === 202) {
+              $log.log(data, status);
+            } else if (status === 200){
+              $log.log(data);
+              $scope.loading = false;
+              $scope.listingCount = data.count;
+              $scope.listings = data.products;
+              $scope.CriteriaError = false;
+              $timeout.cancel(timeout);
+              return false;
+            }
+            // continue to call the poller() function every 2 seconds
+            // until the timeout is cancelled
+            timeout = $timeout(poller, 2000);
+          }).
+          error(function(error) {
+            $log.log(error);
+            $scope.loading = false;
+            $scope.CriteriaError = true;
+          });
+      };
+      poller();
+    } //end getSearcResults()
+
+    function getSearchResults_temp(search, jobid) {
 
         var timeout = "";
 
@@ -132,7 +163,8 @@
           }
 
         
-    }
+    } //end getSearchResults()
+
     $log.log($scope.searchby)
     $scope.searchBy = function() {
       switch($scope.searchby) {
