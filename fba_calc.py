@@ -1,7 +1,6 @@
-from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
+"""from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
 from numpy import median
 
-""" Calculate FBA fees """
 
 TWO_PLACES = Decimal("0.01")
 
@@ -20,7 +19,6 @@ def get_30_day(standard_oversize, cubic_foot):
         return Decimal('0.4325') * normalize(cubic_foot)
 
 def get_standard_or_oversize(length, width, height, weight):
-    """ Determine if object is standard size or oversized """
     if any(
         [
             (weight > 20),
@@ -46,7 +44,6 @@ def get_girth_and_length(length, width, height):
     return Decimal(gl).quantize(Decimal("0.1"))
 
 def calculate_fees(length, width, height, weight, is_apparel=False, is_media=False, is_pro=True):
-    """ Calculate the FBA fees for the given variables """
     dimensional_weight = get_dimensional_weight(length, width, height)
     girth_length = get_girth_and_length(length, width, height)
 
@@ -173,6 +170,6 @@ def get_weight_handling(size_tier, outbound, is_media=False):
 
     else:
         return Decimal('1.59') + (outbound.quantize(Decimal("0"), rounding=ROUND_UP) - 2) * Decimal('0.39')
-
+"""
 
 
