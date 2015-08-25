@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+from math import ceil
 from copy import deepcopy
 
 # Extensions
@@ -30,13 +31,15 @@ from worker import conn
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
 db.init_app(app)
+
+#login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 bcrypt = Bcrypt(app)
+
+#Redis
 q = Queue(connection=conn)
-
-
 
 # Amazon product advertising API (PAAPI) configuration
 amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
@@ -119,21 +122,28 @@ def start():
 @login_required
 def get_results(job_key):
     job = Job.fetch(job_key, connection=conn)
-    #print dir(job)
     if job.is_finished:
         result = Result.query.filter_by(id=job.result).first()
-        print(result)
         return jsonify(result.result_all)
     elif job.is_failed:
-        print job.is_queued, job.is_started
-        print job.status
         return 'Failed', 500
     else:
         return "Nay!", 202
     return 'Returning something'
 
 
-def _add_results_to_db(listings):
+# Helper functions 
+@login_manager.user_loader
+def user_loader(user_id):
+    """Given *user_id*, return the associated User object.
+
+    :param unicode user_id: user_id (email) user to retrieve
+    """
+    return User.query.get(user_id)
+
+
+# Database handlers 
+def add_listings(listings):
     with app.app_context():
         errors = []
         try:
@@ -147,39 +157,47 @@ def _add_results_to_db(listings):
             errors.append("Unable to add item to database.")
             return {"error": errors}
 
-
-def itemsearch(manufacturer):
-    """User can search Amazon's product listings by manufacturer.
-
-    TODO: Allow user to select category. Currently LawnAndGarden. 
-    TODO: Enable multiple manufacturer search.
-
-    :param str manufacturer: the manufacturer to search for.
+def price_range_search_db(manufacturer, price_low, price_high):
+    """User can specify what items to lookup on Amazon from the database.
+    User can choose manufacturer and a price range. 
+    Price range is optional.
     """
-    print 'here'
-    listings = paapi_search(manufacturer)
-    return _add_results_to_db(listings)
+    wildcard_manufacturer = '%' + manufacturer + '%'
+    with app.app_context():
+        session = db.session()
+        products = session.query(Product).filter(Product.manufacturer.ilike(wildcard_manufacturer), 
+                                                Product.primary_cost >= price_low,
+                                                Product.primary_cost <= price_high).all()
+    upclist = []
+    part_numberlist = []
+    for product in products:
+        if product.upc:
+            upclist.append(product.upc)
+        elif product.part_number:
+            part_numberlist.append(product.part_number)
+
+    upc_sections = sectionize(upclist)
+    pn_sections = sectionize(part_numberlist)
+    return upc_sections
+
+def retrieve_cost(upc, listing):
+    """Compares price between lowest price for the product and our cost.
+
+    TODO: add price comparison functionality.
+
+    : ..temporary: currently just grabs our cost.
+    :param dict listing: a dictionary representation of a Listing
+    """
+    with app.app_context():
+        session = db.session()
+        products = session.query(Product).filter(Product.upc == upc)
+        product = products.first()
+        if product:
+            listing['cost'] = product.primary_cost
 
 
-def itemlookup(search_by, user_input):
-    """User can search Amazon's product listings by upc."""
-    listings = {'count':'',
-            'products':{}}
-    paapi_lookup(search_by, user_input, listings)
-    return _add_results_to_db(listings)
 
-
-def price_range_search(user_input, manufacturer):
-    price_low, price_high = user_input.replace(' ','').split(',')
-    flow, fhigh = float(price_low), float(price_high)
-    upc_sectioned_list = search_db(manufacturer, flow, fhigh)
-    listings = {'count':'',
-        'products':{}}
-    for upcs in upc_sectioned_list:
-        paapi_lookup('UPC', upcs, listings)
-        print len(listings['products'])
-    return _add_results_to_db(listings)
-
+# Amazon API Handlers 
 def paapi_lookup(search_by, user_input, listings):
     if search_by == 'UPC':
         products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
@@ -203,79 +221,49 @@ def paapi_search(manufacturer):
     listings['count'] = count
     return listings
 
+def mws_request(asin):
+    mws_products = mws.Products( access_key = mws_credentials['access_key'],
+                         account_id = mws_credentials['seller_id'],
+                         secret_key = mws_credentials['secret_key'],)
+    result =  []
+    if isinstance(asin, list):
+        result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, asin, condition='New')
+    else:
+        result =  mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
+    return result
 
+# This App's API Handlers
+def itemsearch(manufacturer):
+    """User can search Amazon's product listings by manufacturer.
 
-def search_db(manufacturer, price_low, price_high):
-    """User can specify what items to lookup on Amazon from the database.
-    User can choose manufacturer and a price range. 
-    Price range is optional.
+    TODO: Allow user to select category. Currently LawnAndGarden. 
+    TODO: Enable multiple manufacturer search.
+
+    :param str manufacturer: the manufacturer to search for.
     """
-    manufacturer = '%' + manufacturer + '%'
-    with app.app_context():
-        session = db.session()
-        products = session.query(Product).filter(Product.manufacturer.ilike(manufacturer), 
-                                                Product.primary_cost >= price_low,
-                                                Product.primary_cost <= price_high).all()
-    upclist = []
-    part_numberlist = []
-    for product in products:
-        if product.upc:
-            upclist.append(product.upc)
-        elif product.part_number:
-            part_numberlist.append(product.part_number)
-
-    upcs = len(upclist)
-    beg = 0
-    end = 9
-    upc_sections = []
-    while end < (upcs - 1):
-        if beg == end:
-            upc_sections.append(upclist[beg])
-        else:
-            upc_sections.append(', '.join(upclist[beg:end]))
-        if (end + 1) <= (upcs - 1): 
-            beg = end + 1
-        if end > upcs - 1:
-            end = upcs - 1
-        else:
-            end = end + 10
-
-    part_numbers = len(part_numberlist)
-    beg = 0
-    end = 9
-    pn_sections = []
-    while end < (part_numbers - 1):
-        if beg == end:
-            pn_sections.append(part_numberlist[beg])
-        else:
-            pn_sections.append(', '.join(part_numberlist[beg:end]))
-        if (end + 1) <= (part_numbers - 1): 
-            beg = end + 1
-        if end > part_numbers - 1:
-            end = part_numbers - 1
-        else:
-            end = end + 10
-    # TODO: I need to send a list of 20 searchs at a time until end of lists.
-    # TODO: I need to then send them (20 at a time) to mws using the asin
-    # I get from the paapi search
-    print '# of Sections', len(upc_sections)
-    return upc_sections
+    listings = paapi_search(manufacturer)
+    return add_listings(listings)
 
 
-    
+def itemlookup(search_by, user_input):
+    """User can search Amazon's product listings by upc."""
+    listings = {'count':'',
+            'products':{}}
+    paapi_lookup(search_by, user_input, listings)
+    return add_listings(listings)
 
 
-####################
-# Helper functions #
-####################
-@login_manager.user_loader
-def user_loader(user_id):
-    """Given *user_id*, return the associated User object.
+def price_range_search(user_input, manufacturer):
+    price_low, price_high = user_input.replace(' ','').split(',')
+    flow, fhigh = float(price_low), float(price_high)
+    upc_sectioned_list = price_range_search_db(manufacturer, flow, fhigh)
+    listings = {'count':'',
+        'products':{}}
+    for upcs in upc_sectioned_list:
+        paapi_lookup('UPC', upcs, listings)
+    return add_listings(listings)
 
-    :param unicode user_id: user_id (email) user to retrieve
-    """
-    return User.query.get(user_id)
-
+# Utility functions
 def populate_listings(product, listings):
     """Populate a listing with product attributes.
 
@@ -285,15 +273,15 @@ def populate_listings(product, listings):
     # configure the listings
     listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
     listing = listings['products'][product.asin]
-    add_product(product, listing)
+    set_product_attributes(product, listing)
     if product.upc:
-        compare_price(product.upc, listing)
+        retrieve_cost(product.upc, listing)
         set_lowest_prices(product.asin, listing)
     else:
         print('{0} has no UPC.'.format(product.title))  
  
 
-def add_product(product, listing):
+def set_product_attributes(product, listing):
     """Add product attributes to the listing.
 
     param obj product: a product from amazon paapi
@@ -301,7 +289,6 @@ def add_product(product, listing):
     """
     for keyi in listing.keys():
         #TODO: Extend AmazonProduct class to include LowestNewPrice
-        # .. :temporary: extend AmazonProduct class
         if keyi == 'LowestNewPrice':
             price = product._safe_get_element_text(
                 'OfferSummary.LowestNewPrice.Amount')
@@ -328,18 +315,6 @@ def add_product(product, listing):
         except:
             print("Attribute {0} not found".format(keyi))
 
-
-def mws_request(asin):
-    mws_products = mws.Products( access_key = mws_credentials['access_key'],
-                         account_id = mws_credentials['seller_id'],
-                         secret_key = mws_credentials['secret_key'],)
-    result =  []
-    if isinstance(asin, list):
-        result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, asin, condition='New')
-    else:
-        result =  mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
-    return result
-
 def set_lowest_prices(asin, listing):
     # Get response from Amazon's MWS api.
     result = mws_request(asin)
@@ -356,7 +331,7 @@ def set_lowest_prices(asin, listing):
                     listing['lowest_price'] = price
                 except ValueError:
                     # unable to convert price to float
-                    # just send str
+                    # just use str
                     listing['lowest_price'] = lowest_price
                     print('Unable to convert price for {0}'.format(asin))
             if lowest_fba_price:
@@ -364,7 +339,7 @@ def set_lowest_prices(asin, listing):
                     listing['lowest_fba_price'] = float(lowest_fba_price)
                 except ValueError:
                     # Unable to convert fba price.
-                    # Just send the string.
+                    # Just use the string.
                     listing['lowest_fba_price'] = lowest_fba_price
                     print('Unable to convert FBA price for {0}'.format(asin))
             else:
@@ -384,22 +359,30 @@ def set_seller(product, listing):
         if l.lowest_price or l.price == product.lowest_price:
             listing['seller'] = l.seller
 
+def sectionize(alist):
+    """ Amazon only allows 10 asins or upcs at a time. 
+    So we make secitons 10.
 
-
-def compare_price(upc, listing):
-    """Compares price between lowest price for the product and our cost.
-
-    TODO: add price comparison functionality.
-
-    : ..temporary: currently just grabs our cost.
-    :param dict listing: a dictionary representation of a Listing
+    :param list alist: a list of upcs or part numbers.
+    :return list sections: each item is a comma separated string 
+        of at most 10 items from alist.
     """
-    with app.app_context():
-        session = db.session()
-        products = session.query(Product).filter(Product.upc == upc)
-        product = products.first()
-        if product:
-            listing['cost'] = product.primary_cost
+    items = len(alist)
+    beg, end = 0, 9
+    sections = []
+    while end < (items - 1):
+        if beg == end:
+            sections.append(alist[beg])
+        else:
+            sections.append(', '.join(alist[beg:end]))
+        if (end + 1) <= (items - 1): 
+            beg = end + 1
+        if end > items - 1:
+            end = items - 1
+        else:
+            end = end + 10
+    return sections
+
 
 
 

@@ -129,7 +129,7 @@ class Papi(object):
     def _safe_dsearch(self, obj, key):
         """Recursively searches through a *obj* for *key*
         dictHelper() is a custom utility class that helps target keys
-        in dicts much easier.
+        in nested dicts much easier.
 
         return object: values associated with *key* in *obj*.
         """

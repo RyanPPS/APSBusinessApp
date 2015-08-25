@@ -1,4 +1,4 @@
-"""from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
 from numpy import median
 
 
@@ -56,7 +56,6 @@ def calculate_fees(length, width, height, weight, is_apparel=False, is_media=Fal
             fee_weight = 14/16.0
         else:
             fee_weight = 12/16.0
-            print fee_weight
 
         if all(
             [
@@ -170,6 +169,6 @@ def get_weight_handling(size_tier, outbound, is_media=False):
 
     else:
         return Decimal('1.59') + (outbound.quantize(Decimal("0"), rounding=ROUND_UP) - 2) * Decimal('0.39')
-"""
+
 
 
