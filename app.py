@@ -1,6 +1,7 @@
 # All Pool Spa Business Application.
 
 # Python
+import pprint
 import json
 import os
 import sys
@@ -26,6 +27,7 @@ from utils import dictHelper
 from rq import Queue
 from rq.job import Job
 from worker import conn
+from response import Response
 
 # Flask configuration
 app = Flask(__name__)
@@ -42,7 +44,7 @@ bcrypt = Bcrypt(app)
 q = Queue(connection=conn)
 
 # Amazon product advertising API (PAAPI) configuration
-amazon = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
+paapi_conn = AmazonAPI( os.environ['AMAZON_ACCESS_KEY'], 
                     os.environ['AMAZON_SECRET_KEY'], 
                     os.environ['AMAZON_ASSOC_TAG'])
 
@@ -51,11 +53,14 @@ mws_marketplace = os.environ['MWS_MARKETPLACE_ID']
 mws_credentials =  {'access_key': os.environ['MWS_AWS_ACCESS_KEY_ID'], 
         'seller_id': os.environ['MWS_SELLER_ID'], 
         'secret_key': os.environ['MWS_SECRET_KEY']}
+mws_conn = mws.Products( access_key = mws_credentials['access_key'],
+                         account_id = mws_credentials['seller_id'],
+                         secret_key = mws_credentials['secret_key'],)
 
 ###################
 # Route functions #
 ###################
-@app.route('/')
+@app.route('/', methods=["GET"])
 @login_required
 def home():
     return render_template('index.html')
@@ -113,7 +118,7 @@ def start():
         )
     elif search_by == 'Price' and manufacturer:
         job = q.enqueue_call(
-            func=price_range_search, args=(user_input, manufacturer,), result_ttl=5000
+            func=price_range, args=(user_input, manufacturer,), result_ttl=5000
         ) 
     data['jobid'] = job.get_id() 
     return jsonify(data)
@@ -129,7 +134,6 @@ def get_results(job_key):
         return 'Failed', 500
     else:
         return "Nay!", 202
-    return 'Returning something'
 
 
 # Helper functions 
@@ -143,7 +147,7 @@ def user_loader(user_id):
 
 
 # Database handlers 
-def add_listings(listings):
+def add_listings_to_db(listings):
     with app.app_context():
         errors = []
         try:
@@ -152,12 +156,13 @@ def add_listings(listings):
             )
             db.session.add(result)
             db.session.commit()
-            return result.id
         except:
+            print(sys.exc_info()[0])
             errors.append("Unable to add item to database.")
             return {"error": errors}
+        return result.id
 
-def price_range_search_db(manufacturer, price_low, price_high):
+def query_price_range_search_db(manufacturer, price_low, price_high):
     """User can specify what items to lookup on Amazon from the database.
     User can choose manufacturer and a price range. 
     Price range is optional.
@@ -168,6 +173,9 @@ def price_range_search_db(manufacturer, price_low, price_high):
         products = session.query(Product).filter(Product.manufacturer.ilike(wildcard_manufacturer), 
                                                 Product.primary_cost >= price_low,
                                                 Product.primary_cost <= price_high).all()
+    return products
+
+def make_sections(products):
     upclist = []
     part_numberlist = []
     for product in products:
@@ -180,7 +188,7 @@ def price_range_search_db(manufacturer, price_low, price_high):
     pn_sections = sectionize(part_numberlist)
     return upc_sections
 
-def retrieve_cost(upc, listing):
+def query_by_upc(upc):
     """Compares price between lowest price for the product and our cost.
 
     TODO: add price comparison functionality.
@@ -192,47 +200,46 @@ def retrieve_cost(upc, listing):
         session = db.session()
         products = session.query(Product).filter(Product.upc == upc)
         product = products.first()
-        if product:
-            listing['cost'] = product.primary_cost
+    return product
 
-
+#goes with query_by_upc
+def set_cost(product, listing):
+    if product:
+        listing['cost'] = product.primary_cost
+    # TODO: else: Throw except
 
 # Amazon API Handlers 
-def paapi_lookup(search_by, user_input, listings):
+def paapi_lookup(search_by, user_input):
+    products = None
     if search_by == 'UPC':
-        products = amazon.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
+        products = paapi_conn.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
     elif search_by == 'ASIN':
-        products = amazon.lookup(ItemId=user_input, IdType=search_by)
-    if isinstance(products, list):
-        for product in products:
-            populate_listings(product, listings)
-    else:
-        populate_listings(products, listings)
-
+        products = paapi_conn.lookup(ItemId=user_input, IdType=search_by)
+    return products 
 
 def paapi_search(manufacturer):
-    listings = {'count':'',
-        'products':{}}
-    products = amazon.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
-    count = 0
-    for product in products:
-        count += 1
-        populate_listings(product, listings)
-    listings['count'] = count
-    return listings
+    return paapi_conn.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
+
+def paapi_results(products):
+    if isinstance(products, list):
+        response = Response(products, len(products))
+        for product in products:
+            populate_listings(product, response)
+    else:
+        response = Response(products, 1)
+        populate_listings(products, response)
+    return response.listings
 
 def mws_request(asin):
-    mws_products = mws.Products( access_key = mws_credentials['access_key'],
-                         account_id = mws_credentials['seller_id'],
-                         secret_key = mws_credentials['secret_key'],)
-    result =  []
+    result = None
     if isinstance(asin, list):
-        result = mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, asin, condition='New')
+        result = mws_conn.get_lowest_offer_listings_for_asin(mws_marketplace, asin, condition='New')
     else:
-        result =  mws_products.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
+        result = mws_conn.get_lowest_offer_listings_for_asin(mws_marketplace, [asin], condition='New')
     return result
 
-# This App's API Handlers
+
+# This App's API endpoints
 def itemsearch(manufacturer):
     """User can search Amazon's product listings by manufacturer.
 
@@ -241,45 +248,67 @@ def itemsearch(manufacturer):
 
     :param str manufacturer: the manufacturer to search for.
     """
-    listings = paapi_search(manufacturer)
-    return add_listings(listings)
+    products = paapi_search(manufacturer)
+    listings = paapi_results(products)
+    return add_listings_to_db(listings)
 
 
 def itemlookup(search_by, user_input):
     """User can search Amazon's product listings by upc."""
-    listings = {'count':'',
-            'products':{}}
-    paapi_lookup(search_by, user_input, listings)
-    return add_listings(listings)
+    results = paapi_lookup(search_by, user_input)
+    listings = paapi_results(results)
+    return add_listings_to_db(listings)
 
 
-def price_range_search(user_input, manufacturer):
+def price_range(user_input, manufacturer):
     price_low, price_high = user_input.replace(' ','').split(',')
     flow, fhigh = float(price_low), float(price_high)
-    upc_sectioned_list = price_range_search_db(manufacturer, flow, fhigh)
-    listings = {'count':'',
-        'products':{}}
+    #upc_sectioned_list = query_price_range_search_db(manufacturer, flow, fhigh)
+    products = query_price_range_search_db(manufacturer, flow, fhigh)
+    upc_sectioned_list = make_sections(products)
+    listings = None
     for upcs in upc_sectioned_list:
-        paapi_lookup('UPC', upcs, listings)
-    return add_listings(listings)
+        results = paapi_lookup('UPC', upcs)
+        listings = paapi_results(results)
+    return add_listings_to_db(listings)
 
 # Utility functions
-def populate_listings(product, listings):
+###
+def populate_listings(product, response):
     """Populate a listing with product attributes.
 
     param obj product: a product from amazon paapi
     param dict listing: dict representation of amazon listing
     """
     # configure the listings
-    listings['products'][product.asin] = deepcopy(LISTINGS_SCHEME)
-    listing = listings['products'][product.asin]
-    set_product_attributes(product, listing)
-    if product.upc:
-        retrieve_cost(product.upc, listing)
-        set_lowest_prices(product.asin, listing)
-    else:
-        print('{0} has no UPC.'.format(product.title))  
- 
+    print dir(product)
+    asin = product.asin
+    #!listings['products'][asin] = deepcopy(LISTINGS_SCHEME)
+    response.populate_response(product)
+    listing = response.listings['products'][asin]
+    #!set_product_attributes(product, listing)
+    try:
+        our_product = query_by_upc(product.upc)
+        response.set_cost(asin, our_product.primary_cost)
+    except:
+        print("{0} has no UPC.".format(product.title))
+    #!mws_listing_handler(product.asin, listing)
+    result = mws_request(asin)
+    mypapi = papi.Papi(result._mydict)
+    for product in mypapi.products:
+        if product.asin == asin:
+            response.set_lowest_price_mws(asin, product.lowest_price)
+            response.set_lowest_fba_price_mws(asin, product.lowest_fba_price)
+            response.set_seller(asin, get_seller(product))
+
+def get_seller(product):
+    seller = None
+    for l in product.listings:
+        if l.lowest_price or l.price == product.lowest_price:
+            seller = l.seller
+    return seller 
+
+###
 
 def set_product_attributes(product, listing):
     """Add product attributes to the listing.
@@ -315,37 +344,32 @@ def set_product_attributes(product, listing):
         except:
             print("Attribute {0} not found".format(keyi))
 
-def set_lowest_prices(asin, listing):
-    # Get response from Amazon's MWS api.
-    result = mws_request(asin)
-    # Get products from mws response.
-    dproducts = result._mydict
-    mypapi = papi.Papi(dproducts)
-    for product in mypapi.products:
-        if product.asin == asin:
-            lowest_price = product.lowest_price
-            lowest_fba_price = product.lowest_fba_price
-            if lowest_price:
-                try:
-                    price = float(lowest_price)
-                    listing['lowest_price'] = price
-                except ValueError:
-                    # unable to convert price to float
-                    # just use str
-                    listing['lowest_price'] = lowest_price
-                    print('Unable to convert price for {0}'.format(asin))
-            if lowest_fba_price:
-                try:
-                    listing['lowest_fba_price'] = float(lowest_fba_price)
-                except ValueError:
-                    # Unable to convert fba price.
-                    # Just use the string.
-                    listing['lowest_fba_price'] = lowest_fba_price
-                    print('Unable to convert FBA price for {0}'.format(asin))
-            else:
-                print('No FBA price available for {0}.'.format(asin))
-                listing['lowest_fba_price'] = 'N/A'
-        set_seller(product, listing)
+
+def set_lowest_price(product, asin, listing):
+    lowest_price = product.lowest_price
+    if lowest_price:
+        try:
+            price = float(lowest_price)
+            listing['lowest_price'] = price
+        except ValueError:
+            # unable to convert price to float
+            # just use str
+            listing['lowest_price'] = lowest_price
+            print('Unable to convert price for {0}'.format(asin))
+
+def set_lowest_fba_price(product, asin, listing):
+    lowest_fba_price = product.lowest_fba_price
+    if lowest_fba_price:
+        try:
+            listing['lowest_fba_price'] = float(lowest_fba_price)
+        except ValueError:
+            # Unable to convert fba price.
+            # Just use the string.
+            listing['lowest_fba_price'] = lowest_fba_price
+            print('Unable to convert FBA price for {0}'.format(asin))
+    else:
+        print('No FBA price available for {0}.'.format(asin))
+        listing['lowest_fba_price'] = 'N/A'    
     
 
 def set_seller(product, listing):
