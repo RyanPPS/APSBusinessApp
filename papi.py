@@ -13,7 +13,7 @@ class Papi(object):
 
     def __init__(self, response):
         self.response = response
-        self._products = []
+        self._products = {}
         self._listings = []
         #Auto populates _products and _listings
         self.make_products_and_listings()
@@ -32,10 +32,10 @@ class Papi(object):
             self._listings.append(tlisting)
             dproducts[asin]['listings'].append(tlisting)
         for asin, vals in dproducts.items():
-            self._products.append(Product(asin, vals['listings'], 
-                                    vals['lowest_price'], 
-                                    vals['shipping'],
-                                    vals['lowest_fba_price']))
+            self._products[asin] = Product(asin, vals['listings'], 
+                                           vals['lowest_price'], 
+                                           vals['shipping'],
+                                           vals['lowest_fba_price'])
 
     @property 
     def products(self):
@@ -54,7 +54,7 @@ class Papi(object):
 
         :return obj: values associated with Product key in self.response
         """
-        return self._safe_dsearch(self.response, 'Product')
+        return self.dictsearch(self.response, 'Product')
 
     def _retrieve_listings_and_products(self):
         """Make a dictionary out of the listings in the response
@@ -79,14 +79,14 @@ class Papi(object):
             current_product = dproducts[asin]
             current_listing = dlistings[asin]
             try:
-                lowest_offer_listing = self._safe_dsearch(product, 'LowestOfferListing')[0]
+                lowest_offer_listing = self.dictsearch(product, 'LowestOfferListing')[0]
             except:
                 # this is an empty listing
                 continue
             lowest_fba_seller_found = False
             for i, listing in enumerate(lowest_offer_listing):
                 try:
-                    price = self._safe_dsearch(listing, 'LandedPrice')
+                    price = self.dictsearch(listing, 'LandedPrice')
                     if price:
                         current_listing['price'] = price[0]['Amount']['value']
                     else:
@@ -94,9 +94,9 @@ class Papi(object):
                         # TODO: Find out why we receive empty listings.
                         pass   
                 except:
-                    print("Unable to find price. {0}".format(self._safe_dsearch(listing, 'LandedPrice')))
+                    print("Unable to find price. {0}".format(self.dictsearch(listing, 'LandedPrice')))
                 try:
-                    shipping = self._safe_dsearch(listing, 'Shipping')
+                    shipping = self.dictsearch(listing, 'Shipping')
                     if shipping:
                         current_listing['shipping'] = shipping[0]['Amount']['value']
                     else:
@@ -104,9 +104,9 @@ class Papi(object):
                         # TODO: Find out why we receive empty listings.
                         pass   
                 except:
-                    print("Unable to find shipping. {0}".format(self._safe_dsearch(listing, 'Shipping')))
+                    print("Unable to find shipping. {0}".format(self.dictsearch(listing, 'Shipping')))
                 try:
-                    seller = self._safe_dsearch(listing, 'FulfillmentChannel')
+                    seller = self.dictsearch(listing, 'FulfillmentChannel')
                     if seller:
                         current_listing['seller'] = seller[0]['value']
                     else:
@@ -114,7 +114,7 @@ class Papi(object):
                         # TODO: Find out why we receive empty listings.
                         pass   
                 except:
-                    print("Unable to find price. {0}".format(self._safe_dsearch(listing, 'FulFillmentChannel')))
+                    print("Unable to find price. {0}".format(self.dictsearch(listing, 'FulFillmentChannel')))
                 # First listing will be the lowest.
                 if i == 0:
                     current_listing['lowest_price'] = True
@@ -126,7 +126,7 @@ class Papi(object):
         return dlistings, dproducts
 
     
-    def _safe_dsearch(self, obj, key):
+    def dictsearch(self, obj, key):
         """Recursively searches through a *obj* for *key*
         dictHelper() is a custom utility class that helps target keys
         in nested dicts much easier.
@@ -161,6 +161,13 @@ class Product(object):
         self._lowest_fba_price = lowest_fba_price
 
 
+    def get_cheapest_seller(self):
+        seller = None
+        # TODO: find a more efficient way for the below code.
+        for listing in self.listings:
+            if listing.lowest_price:
+                seller = listing.seller
+        return seller 
 
     @property
     def asin(self):

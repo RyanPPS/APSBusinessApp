@@ -1,3 +1,5 @@
+from itertools import izip_longest
+
 
 class dictHelper(dict):
     """Various methods to help traverse the dict representation of
@@ -43,6 +45,24 @@ class dictHelper(dict):
         return fields_found
 
 
+def sectionize(products):
+    """ Amazon only allows 10 asins or upcs at a time. 
+    So we make sections of 10.
+
+    :param list products: a list of Products .
+    :return list sections: each item is a comma separated string 
+        of at most 10 items from alist.
+    """
+    upclist = [product.upc for product in products if product.upc]
+    filtered_sectioned_list = [
+        [item for item in section if item is not None] 
+        for section in izip_longest(*(iter(upclist),) * 10)
+    ]
+    sections = [
+        ', '.join(filtered_section) for filtered_section in 
+        filtered_sectioned_list
+    ]
+    return sections
 
 
 

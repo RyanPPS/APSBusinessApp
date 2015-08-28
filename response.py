@@ -24,10 +24,8 @@ class Response(object):
                         'color': '',}
 
 
-    def __init__(self, products, count):
-        self._products = products
-        self._count = count
-        self._listings = {'count': count, 'products': {}}
+    def __init__(self):
+        self._listings = {'count': 0, 'products': {}}
 
     def populate_response(self, product):
         """Populate a listing with product attributes.
@@ -48,6 +46,12 @@ class Response(object):
         self.listings['products'][asin]['cost'] = cost
 
     def set_seller(self, asin, seller):
+        """Sellers are either Merchants or Amazon. 
+        This identifies the fulfillment method. FBA or FBM
+
+        :param obj asin: product sold on Amazon
+        :param obj seller: seller associated with product
+        """
         self.listings['products'][asin]['seller'] = seller
         
     def set_lowest_price_mws(self, asin, lowest_price):
@@ -93,13 +97,12 @@ class Response(object):
 
     @property
     def count(self):
-        return self._count
-
-    @property
-    def products(self):
-        return self._products
+        return self.listings['count']
     
-
+    @count.setter
+    def count(self, num):
+        self.listings['count'] = num
+    
     @property
     def listings(self):
         return self._listings
