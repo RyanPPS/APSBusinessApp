@@ -1,117 +1,159 @@
+# populate_db.py adds products from a set of files *files*
+# to the database. 
+# It expects the following keys:
+#   1. part_number
+#   2. manufacturer
+# It accepts the following keys:
+#   1. those it expects
+#   2. title
+#   3. upc
+#   4. weight
+#   5. height 
+#   6. length 
+#   7. width 
+#       * can take a set of dimensions as a string separated by 'x'.
+#           (ex. '1.0x2.0x3.0').
+#   8. price 
+#       * wants a float but can handle a string with ',' or '.' or '$'.
+# It checks if a product exists with that part_number and manufacturer beforing adding.
+# If item is found, price, upc, and title are updated if they don't exist.
+# It only handles json files.
+# If you have a csv file, please see the make_json_file.py.
+
+
 import os
 import uuid
 import json
 import csv
-from sqlalchemy import func
+from sqlalchemy import func, update
 from app import app
 from models import Product, db
 
 
 
-with app.app_context():
-    session = db.session()
-    db.metadata.create_all(db.engine)
-    file_list_json = [
-        'usseal.json', 'unicel.json', 'waterway.json', 
-        'raypak.json', 'aladdin.json', 'hayward.json', 
-        'zodiac.json'
+def populate_db(files):
+    with app.app_context():
+        session = db.session()
+        db.metadata.create_all(db.engine)
+        main_added_counter = 0
+        main_updated_counter = 0
+        for f in files:
+            if f.endswith('.json'):
+                with open('scripts/db_files/'+ f, 'Ur') as ifile:
+                    products = json.load(ifile, encoding="cp1252")
+                    added_counter = 0
+                    updated_counter = 0
+                    for product in products:
+                        item = products[product]
+                        # Set variables
+                        part_number = item['part_number']
+                        manufacturer = item['manufacturer']
+                        fprice = get_price(item)
+                        h, l, w = get_dimensions(item)
+                        weight = get_value('weight', item)
+                        upc = get_value('upc', item)
+                        title = get_value('title', item)
+                        # Check if item exist in database.
+                        dbproduct = get_product(part_number, manufacturer)
+                        if prod is not None:
+                            update_product(dbproduct, item, session)
+                            updated_counter += 1
+                        else:
+                            product_for_db = Product(
+                                part_number=part_number, upc = upc,
+                                manufacturer = manufacturer, title = title,
+                                primary_cost = fprice, available = True,
+                                weight = weight, height = h,
+                                width = w, length = l
+                            )
+                            add_product(product_for_db, session)
+                            added_counter += 1
+                    print('{0} products from {1} added to database.'.format(added_counter, manufacturer))
+                    print('{0} products from {1} updated in the database.'.format(updated_counter, manufacturer))
+                main_added_counter += added_counter
+                main_updated_counter += updated_counter
+        print('{0} total products added to database.'.format(main_added_counter))
+        print('{0} total products updated in the database.'.format(main_updated_counter))
+
+def update_product(product, item, session):
+    try:
+        if not product.upc:
+            product.upc = item['upc']
+        if not product.primary_cost:
+            product.primary_cost = get_price(item)
+        if not product.title:
+            product.title = item['title']
+        session.commit()
+    except DataError as e:
+        print("Experienced error: {0}".format(e))
+
+def get_value(key, item):
+    if key in item:
+        value = item[key]
+    else:
+        value = None
+    return value
+
+def get_price(item):
+    if not 'price' in item:
+        return None
+    if isinstance(item['price'], float):
+        fprice = item['price']
+    else:
+        try:
+            price = item['price'].replace(',', '').replace('$', '')
+            fprice = float(price)
+        except:
+            fprice = None
+            pass
+    return fprice
+
+def get_dimensions(item):
+    if 'dimensions' in item and item['dimensions']:
+        h, l, w = item['dimensions'].split('x')
+    elif 'dimensions' in item and not item['dimensions']:
+        h,l,w = None, None, None
+    else:
+        if 'height' in item:
+            h = item['height']
+        else:
+            h = None
+        if 'length' in item:
+            l = item['length']
+        else:
+            l = None
+        if 'width' in item:
+            w = item['width']
+        else:
+            w = None
+    return h, l, w
+
+def get_product(part_number, manufacturer):
+    try:
+        product = Product.query.filter_by(part_number=part_number, manufacturer=manufacturer).first()
+    except:
+        product = None
+    return product
+
+def add_product(product, session):
+    try:
+        session.add(product)
+        session.commit()
+    except:
+        print('Unable to add items to database.')
+
+
+if __name__ == '__main__':
+    files = [
+            'aladdin.json', 'hayward.json',
+            'pentair.json', 'raypak.json',
+            'srsmith.json', 'unicel.json',
+            'usseal.json', 'valpak.json',
+            'waterway.json', 'zodiac.json'
     ]
-    file_list_csv = [
-        'valpak_manufacturer.csv',
-        'srsmith.csv'
-    ]
-    for f in file_list_csv:
-        if f.endswith('.json'):
-            with open('scripts/db_files/'+ f, 'Ur') as ifile:
-                products = json.load(ifile)
-                counter = 0
-                for product in products:
-                    item = products[product]
+    populate_db(files)
 
-                    if not 'price' in item:
-                        fprice = None
-                    elif not isinstance(item['price'], float):
-                        price = item['price'].replace(',', '').replace('$', '')
-                        fprice = float(price)
-                    else:
-                        fprice = item['price']
-
-                    if 'dimensions' in item and item['dimensions']:
-                        h, l, w = item['dimensions'].split('x')
-                    elif 'dimensions' in item and not item['dimensions']:
-                        h,l,w = None, None, None
-                    else:
-                        if 'height' in item:
-                            h = item['height']
-                        else:
-                            h = None
-                        if 'length' in item:
-                            l = item['length']
-                        else:
-                            l = None
-                        if 'width' in item:
-                            w = item['width']
-                        else:
-                            w = None
-                    if 'ship_weight' in item:
-                        weight = item['ship_weight']
-                    elif 'weight' in item:
-                        weight = item['weight']
-                    else:
-                        weight = None
-
-                    p = Product(
-                        part_number=item['oem'],
-                        upc = item['upc'],
-                        manufacturer = item['manufacturer'],
-                        title = item['title'],
-                        primary_cost = fprice,
-                        available = True,
-                        weight = weight,
-                        height = h,
-                        width = w,
-                        length = l
-                    )
-                    session.add(p)
-                    session.commit()
-                    counter += 1
-                print('{0} products added to database out of {1}.'.format(counter, len(products)))
-        if f.endswith('.csv'):
-            with open('scripts/db_files/'+ f, 'Ur') as ifile:
-                reader = csv.DictReader(ifile)
-                for product in reader:
-                    if 'weight' in product:
-                        weight = product['weight']
-                    if 'length' in product:
-                        length = product['length']
-                    if 'height' in product:
-                        height = product['height']
-                    if 'width' in product:
-                        width = product['width']
-                    if 'title' in product:
-                        title  = product['title']
-                    if 'manufacturer' in product:
-                        manufacturer = product['manufacturer']
-                    if 'price' in product:
-                        price = product['price']
-                    upc = product['upc']
-                    part_number = product['part_number']
-                    p = Product(
-                        part_number=part_number,
-                        upc = upc,
-                        manufacturer = manufacturer,
-                        title = title,
-                        primary_cost = price,
-                        available = True,
-                        weight = weight,
-                        height = height,
-                        width = width,
-                        length = length
-                    )
-                    session.add(p)
-                    session.commit()
-                    counter += 1
-                print('{0} products added to database out of {1}.'.format(counter, len(products)))
-
+    
+        
 
             
