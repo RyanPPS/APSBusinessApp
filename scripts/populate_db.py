@@ -39,7 +39,9 @@ def populate_db(files):
         main_updated_counter = 0
         for f in files:
             if f.endswith('.json'):
-                with open('scripts/db_files/'+ f, 'Ur') as ifile:
+                openf = 'scripts/db_files/'+ f
+                with open(openf, 'Ur') as ifile:
+                    print ifile
                     products = json.load(ifile, encoding="cp1252")
                     added_counter = 0
                     updated_counter = 0
@@ -55,7 +57,7 @@ def populate_db(files):
                         title = get_value('title', item)
                         # Check if item exist in database.
                         dbproduct = get_product(part_number, manufacturer)
-                        if prod is not None:
+                        if dbproduct is not None:
                             update_product(dbproduct, item, session)
                             updated_counter += 1
                         else:
@@ -78,11 +80,11 @@ def populate_db(files):
 def update_product(product, item, session):
     try:
         if not product.upc:
-            product.upc = item['upc']
+            product.upc = get_value('upc', item)
         if not product.primary_cost:
             product.primary_cost = get_price(item)
         if not product.title:
-            product.title = item['title']
+            product.title = get_value('title', item)
         session.commit()
     except DataError as e:
         print("Experienced error: {0}".format(e))
@@ -104,6 +106,7 @@ def get_price(item):
             price = item['price'].replace(',', '').replace('$', '')
             fprice = float(price)
         except:
+            print('Price Unavailable for {0}'.format(item['part_number']))
             fprice = None
             pass
     return fprice
@@ -114,18 +117,9 @@ def get_dimensions(item):
     elif 'dimensions' in item and not item['dimensions']:
         h,l,w = None, None, None
     else:
-        if 'height' in item:
-            h = item['height']
-        else:
-            h = None
-        if 'length' in item:
-            l = item['length']
-        else:
-            l = None
-        if 'width' in item:
-            w = item['width']
-        else:
-            w = None
+        h = get_value('height', item)
+        l = get_value('length', item)
+        w = get_value('width', item)
     return h, l, w
 
 def get_product(part_number, manufacturer):
@@ -145,11 +139,9 @@ def add_product(product, session):
 
 if __name__ == '__main__':
     files = [
-            'aladdin.json', 'hayward.json',
-            'pentair.json', 'raypak.json',
-            'srsmith.json', 'unicel.json',
-            'usseal.json', 'valpak.json',
-            'waterway.json', 'zodiac.json'
+            'pentair.json',
+            'srsmith.json',
+            'valpak.json'
     ]
     populate_db(files)
 

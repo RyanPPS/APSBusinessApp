@@ -10,72 +10,81 @@ import json
 import csv
 
 
-manufacturer = 'add the manufacturer here'
+MANUFACTURER = 'S.R. SMITH' #add the manufacturer here
 p = {}
 unsure = {}
-fjson = 'add a .json catalog file here'
-fcsv = 'add a .csv catalog file here'
-outf = 'add an output file here'
+files = ['srsmith.json', 'srsmith_cc.json'] #add a .json catalog file here
+fcsv = '' #add a .csv catalog file here
+outf = 'srsmith_merged.json' #add an output file here
 
+for fjson in files:
+    if fjson and fjson.endswith('.json'):
+        with open('db_files/'+ fjson, 'Ur') as ifile:
+            products = json.load(ifile, encoding="cp1252")
+            counter = 0
+            for product in products:
+                if isinstance(products, list):
+                    item = product
+                else:
+                    item = products[product]
+                    print 'in'
+                fprice = item['price']
+                if 'dimensions' in item and item['dimensions']:
+                    h, l, w = item['dimensions'].split('x')
+                elif 'dimensions' in item and not item['dimensions']:
+                    h,l,w = None, None, None
+                else:
+                    if 'height' in item:
+                        h = item['height']
+                    else:
+                        h = None
+                    if 'length' in item:
+                        l = item['length']
+                    else:
+                        l = None
+                    if 'width' in item:
+                        w = item['width']
+                    else:
+                        w = None
+                if 'ship_weight' in item:
+                    weight = item['ship_weight']
+                elif 'weight' in item:
+                    weight = item['weight']
+                else:
+                    weight = None
 
-if fjson and endswith('.json'):
-    with open('db_files/'+ fjson, 'Ur') as ifile:
-        products = json.load(ifile, encoding="cp1252")
-        counter = 0
-        for product in products:
-            if isinstance(products, list):
-                item = product
-            else:
-                item = products[product]
-                print 'in'
-            fprice = item['primary_cost']
-            if 'dimensions' in item and item['dimensions']:
-                h, l, w = item['dimensions'].split('x')
-            elif 'dimensions' in item and not item['dimensions']:
-                h,l,w = None, None, None
-            else:
-                if 'height' in item:
-                    h = item['height']
+                if 'upc' in item:
+                    upc = item['upc']
                 else:
-                    h = None
-                if 'length' in item:
-                    l = item['length']
-                else:
-                    l = None
-                if 'width' in item:
-                    w = item['width']
-                else:
-                    w = None
-            if 'ship_weight' in item:
-                weight = item['ship_weight']
-            elif 'weight' in item:
-                weight = item['weight']
-            else:
-                weight = None
+                    upc = None
+                if item['part_number'] not in p:
+                    if fprice:
+                        available = True
+                    else:
+                        available = False
+                    p[item['part_number']] = {
+                        'part_number' : item['part_number'],
+                        'upc' : upc,
+                        'manufacturer' : MANUFACTURER,
+                        'title' : item['title'],
+                        'price' : fprice,
+                        'available' : available,
+                        'weight' : weight,
+                        'height' : h,
+                        'width' : w,
+                        'length' : l
+                    }
 
-            if item['part_number'] not in p:
-                if fprice:
-                    available = True
-                else:
-                    available = False
-                p[item['part_number']] = {
-                    'part_number' : item['part_number'],
-                    'upc' : item['upc'],
-                    'manufacturer' : manufacturer,
-                    'title' : item['title'],
-                    'primary_cost' : fprice,
-                    'available' : available,
-                    'weight' : weight,
-                    'height' : h,
-                    'width' : w,
-                    'length' : l
-                }
-
-if fcsv and endswith('.csv'):
+if fcsv and fcsv.endswith('.csv'):
     with open('db_files/'+ fcsv, 'Ur') as ifile:
         products = csv.DictReader(ifile)
         counter = 0
         for product in products:
+            if 'upc' in product:
+                upc = product['upc']
+            else:
+                upc = None
+            part_number = product['part_number']
             if 'weight' in product:
                 weight = product['weight']
             else:
@@ -96,23 +105,18 @@ if fcsv and endswith('.csv'):
                 title  = product['title']
             else:
                 title = None
-            if 'manufacturer' in product:
-                manufacturer = product['manufacturer']
-            else:
-                manufacturer = None
+            manufacturer = MANUFACTURER
+
             try:
-                if not isinstance(product['price'], float):
+                if isinstance(product['price'], float):
+                    fprice = fprice = product['price']
+                else:
                     price = product['price'].replace(',', '').replace('$', '')
                     fprice = float(price)
-                else:
-                    fprice = product['price']
-                    print 'Price unconverted'
             except:
-                print 'Price Unavailable'
+                print('Price Unavailable: {0}'.format(part_number))
                 fprice = None
 
-            upc = product['upc']
-            part_number = product['part_number']
 
             if part_number in p:
                 ppn = p[part_number]
@@ -128,7 +132,7 @@ if fcsv and endswith('.csv'):
                     ppn['title'] = title
 
                 if fprice:
-                    ppn['primary_cost'] = fprice
+                    ppn['price'] = fprice
                     ppn['available'] = True
                 else:
                     fprice
@@ -152,7 +156,7 @@ if fcsv and endswith('.csv'):
                     'upc' : upc,
                     'manufacturer' : manufacturer,
                     'title' : title,
-                    'primary_cost' : fprice,
+                    'price' : fprice,
                     'available' : available,
                     'weight' : weight,
                     'height' : height,
