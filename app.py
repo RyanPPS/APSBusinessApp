@@ -204,6 +204,7 @@ def query_price_range_search_db(manufacturer, price_low, price_high):
     :param float price_low: minimum price to search for
     :param float price_high: maximum price to search for
     """
+    print("Manufacturer {0}".format(manufacturer))
     wildcard_manufacturer = '%' + manufacturer + '%'
     with app.app_context():
         session = db.session()
@@ -212,6 +213,7 @@ def query_price_range_search_db(manufacturer, price_low, price_high):
             Product.primary_cost >= price_low,
             Product.primary_cost <= price_high
         ).all()
+        print("Products returned from db:\n{0}".format(products))
     return products
 
 def query_by_upc(upc):
