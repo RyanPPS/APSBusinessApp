@@ -86,8 +86,8 @@ def update_product(product, item, session):
         if not product.title:
             product.title = get_value('title', item)
         session.commit()
-    except DataError as e:
-        print("Experienced error: {0}".format(e))
+    except:
+        print("Experienced error")
 
 def get_value(key, item):
     if key in item:
