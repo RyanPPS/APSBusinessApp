@@ -190,7 +190,6 @@ def add_listings_to_db(listings):
             db.session.add(result)
             db.session.commit()
         except:
-            print(sys.exc_info()[0])
             errors.append("Unable to add item to database.")
             return {"error": errors}
         return result.id
