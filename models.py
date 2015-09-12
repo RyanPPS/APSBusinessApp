@@ -33,13 +33,14 @@ class Listing(db.Model):
     price = db.Column(db.Float)
     currency = db.Column(db.String)
     result_all = db.Column(JSON)
-
-    # Relationships
-    product = db.relationship("Product", backref='Listing', foreign_keys=[product_id], uselist=False)
-    image = db.relationship("Image", backref='Listing', uselist=False)
     # Foreign keys
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
+    catalog_sku = db.Column(db.String, db.ForeignKey('catalog.sku'))
+    # Relationships
+    product = db.relationship("Product", backref='Listing', foreign_keys=[product_id], uselist=False)
+    image = db.relationship("Image", backref='Listing', foreign_keys=[image_id], uselist=False)
+
 
     def __repr__(self):
         return '<asin {}>'.format(self.asin)
@@ -57,18 +58,18 @@ class Image(db.Model):
     __tablename__ = 'image'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tiny_image = db.Column(db.String, unique=True)
+    tiny_image = db.Column(db.String)
     small_image = db.Column(db.String)
     medium_image = db.Column(db.String)
     large_image = db.Column(db.String)
-    # Relationships
-    product = db.relationship('Product', backref='Listing', foreign_keys=[product_id], uselist=False)
-    listing = db.relationship('Listing', backref='Image', uselist=False)
-    catalog_item = db.relationship('Catalog', backref='Image', uselist=False)
     # Foreign keys
-    listing_id = db.Column(db.Integer, db.ForeignKey('listing.asin'))
+    listing_asin = db.Column(db.String, db.ForeignKey('listing.asin'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
-    catalog_id = db.Column(db.Integer, db.ForeignKey('catalog.id'))
+    catalog_sku = db.Column(db.String, db.ForeignKey('catalog.sku'))
+    # Relationships
+    product = db.relationship('Product', backref='Image', foreign_keys=[product_id], uselist=False)
+    listing = db.relationship('Listing', backref='Image', foreign_keys=[listing_asin], uselist=False)
+    #catalog_item = db.relationship('Catalog', backref='Image', foreign_keys=[catalog_sku], uselist=False)
 
     def __repr__(self):
         return '<listing_asin {}>'.format(self.listing_asin)
@@ -123,7 +124,6 @@ class Product(db.Model):
     __tablename__ = 'product'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     upc = db.Column(db.String)
-    
     manufacturer = db.Column(db.String)
     part_number = db.Column(db.String)
     title = db.Column(db.String)
@@ -134,11 +134,11 @@ class Product(db.Model):
     height = db.Column(db.String)
     width = db.Column(db.String)
     length = db.Column(db.String)
-    # Relationships
-    listings = db.relationship('Listing', backref='product')
-    image = db.relationship('Image' backref='product', uselist=False)
     # Foreign keys
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
+    # Relationships
+    listings = db.relationship('Listing')
+    image = db.relationship('Image', foreign_keys=[image_id], uselist=False)
 
     def __repr__(self):
         return '<upc {}>'.format(self.upc)
@@ -160,6 +160,7 @@ class Company(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
+    abbreviation = db.Column(db.String)
     website = db.Column(db.String)
     address = db.Column(JSON)
     phone = db.Column(db.String)
@@ -173,9 +174,10 @@ class Company(db.Model):
 class Catalog(db.Model):
     __tablename__ = 'catalog'
 
-    id = db.Column(db.Integer, primary_key=True)
-    sku = db.Column(db.String)
+    #id = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String, primary_key=True)
     part_number = db.Column(db.String)
+    cost = db.Column(db.Float)
     res_price = db.Column(db.Float)
     com_price = db.Column(db.Float)
     shipping = db.Column(db.Float)
@@ -186,14 +188,14 @@ class Catalog(db.Model):
     upc = db.Column(db.String)
     fba = db.Column(db.Boolean)
     instock = db.Column(db.Boolean)
-    # Relationships
-    listings = db.relationship('Listing', backref='catalog', foreign_keys=[listing_id])
-    product = db.relationship('Product', backref='catalog', foreign_keys=[product_id], uselist=False)
-    image = db.relationship('Image', backref='catalog', foreign_keys=[product_id], uselist=False)
     # Foreign keys
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
-    listing_id = db.Column(db.Integer, db.ForeignKey('listing.id'))
-    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))
+    #listing_asin = db.Column(db.String, db.ForeignKey('listing.asin'))
+    image_id = db.Column(db.Integer, db.ForeignKey('image.id'))    
+    # Relationships
+    listings = db.relationship('Listing', backref='catalog')
+    product = db.relationship('Product', backref='catalog', foreign_keys=[product_id], uselist=False)
+    image = db.relationship('Image', foreign_keys=[image_id], uselist=False)
     
 
 

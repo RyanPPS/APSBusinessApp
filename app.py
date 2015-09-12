@@ -7,9 +7,6 @@
 # Python
 import json
 import os
-import sys
-from math import ceil
-from copy import deepcopy
 
 # Third Party
 from amazon.api import AmazonAPI, AmazonProduct
@@ -33,7 +30,7 @@ from flask.views import View
 import papi
 from mws import mws
 from forms import LoginForm
-from models import Listing, User, Product, Result, db
+from models import Listing, Image, User, Product, Result, db
 from utils import dictHelper, sectionize
 from worker import conn
 from response import Response
@@ -183,6 +180,10 @@ def add_listings_to_db(listings):
     """add a listing to the database"""
     with app.app_context():
         errors = []
+        products = listings['products']
+        for listing in products:
+            add_listing(listing, products[listing])
+            add_images(listing, products[listing]['imagelist'])
         try:
             result = Result(
                 result_all=listings,
@@ -193,6 +194,74 @@ def add_listings_to_db(listings):
             errors.append("Unable to add item to database.")
             return {"error": errors}
         return result.id
+
+def listing_exists(asin):
+    try:
+        listing = Listing.query.filter_by(asin=asin).first()
+    except:
+        listing = None
+    if listing:
+        return True
+    else:
+        return False
+
+def image_exists(asin):
+    try:
+        image = Image.query.filter_by(listing_asin=asin).first()
+    except:
+        image = None
+    if image:
+        return True
+    else:
+        return False
+
+
+def add_listing(asin, listing={}):
+    # We may need to add a listing with just an asin.
+    if not (listing_exists(asin) or listing):
+        db.session.add(Listing(asin=asin))
+        db.session.commit()
+    elif not listing_exists(asin):
+        try:
+            fprice = float(listing['lowest_price'])
+        except:
+            fprice = None
+        try:
+            l = Listing(
+                asin = asin,
+                manufacturer = listing['manufacturer'],
+                title = listing['title'],
+                part_number = listing['part_number'],
+                price = fprice,
+                upc = listing['upc']
+            )
+            db.session.add(l)
+            db.session.commit()
+            print('Added {0} to db'.format(l))
+        except:
+            print('Unable to add listing to db')
+    else:
+        print('{0} already exists in db'.format(asin))
+
+def add_images(asin, images):
+    if not listing_exists(asin):
+        add_listing(asin)
+    if not image_exists(asin):
+        try:
+            image = Image(
+                tiny_image = images['tiny_image_url'],
+                small_image = images['small_image_url'],
+                medium_image = images['medium_image_url'],
+                large_image = images['large_image_url'],
+                listing_asin = asin
+            )
+            db.session.add(image)
+            db.session.commit()
+            print('Added {0} to db'.format(image))
+        except:
+            print('Unable to add {0} to db'.format(asin))
+    else:
+        print('{0} already exists in db'.format(asin))
 
 def query_price_range_search_db(manufacturer, price_low, price_high):
     """User can specify what items to lookup on Amazon from the database.

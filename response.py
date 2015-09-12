@@ -14,10 +14,11 @@ class Response(object):
                         'offer_url': '',
                         'manufacturer': '',
                         'imagelist': {
-                                        'large_image_url': '',
-                                        'medium_image_url': '',
-                                        'small_image_url': '',
-                                        'tiny_image_url': '',},
+                            'large_image_url': '',
+                            'medium_image_url': '',
+                            'small_image_url': '',
+                            'tiny_image_url': '',
+                        },
                         'brand': '',
                         'ean': '',
                         'upc': '',
@@ -106,6 +107,11 @@ class Response(object):
     @property
     def listings(self):
         return self._listings
+
+    @property
+    def products(self):
+        return self.listings['products']
+
 
 
 
