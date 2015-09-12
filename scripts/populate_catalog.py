@@ -11,7 +11,7 @@ def populate_db():
     with app.app_context():
         session = db.session()
         db.metadata.create_all(db.engine)
-        products = Product.query.filter(Product.manufacturer.ilike('%Waterway%')).all()
+        products = Product.query.all()
         for product in products:
             part_number = product.part_number
             manufacturer = product.manufacturer
