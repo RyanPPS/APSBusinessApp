@@ -14,7 +14,7 @@
 #       * can take a set of dimensions as a string separated by 'x'.
 #           (ex. '1.0x2.0x3.0').
 #   8. price 
-#       * wants a float but can handle a string with ',' or '.' or '$'.
+#       * wants a float but can convert a string with ',' or '.' or '$'.
 # It checks if a product exists with that part_number and manufacturer beforing adding.
 # If item is found, price, upc, and title are updated if they don't exist.
 # It only handles json files.
@@ -86,8 +86,8 @@ def update_product(product, item, session):
         if not product.title:
             product.title = get_value('title', item)
         session.commit()
-    except DataError as e:
-        print("Experienced error: {0}".format(e))
+    except:
+        print("Experienced error")
 
 def get_value(key, item):
     if key in item:
