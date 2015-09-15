@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html ng-app="APSBusinessApp">
+<html ng-app="FitsFbaApp">
   <head>
     <title>APS Business Application</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +14,7 @@
     </style>
   </head>
   <!-- Angular Application -->
-  <body ng-controller="APSBusinessController">
+  <body ng-controller="listingsController">
   <!-- Force footer to bottom with div#wrap -->
   <div id="wrap">
   <!-- Navigation -->
@@ -57,7 +57,9 @@
         <div class="col-md-12">
           <h2 id="search-by-heading2" class="text-center">Discover</h2> 
           <div class="input-group" id="adv-search">
-            <input type="text" name="main-search" ng-model="input_search" class="form-control search-criteria" placeholder="Select your search by criteria..." />
+          {% raw %}
+            <input type="text" name="main-search" ng-model="input_search" class="form-control search-criteria" placeholder="{{searchByPlaceholder}}" />
+          {% endraw %}
             <div class="input-group-btn">
               <div class="btn-group" role="group">
                 <div id="dropdown-searchby" class="dropdown dropdown-lg">
@@ -67,14 +69,14 @@
                       <div class="form-group">
                         <label for="filter">Search by</label>
                         {% raw %}
-                        <select class="form-control" ng-model="searchby" ng-change="searchBy()">
+                        <select class="form-control" ng-model="searchby" ng-change="searchBy(searchby)">
                           <option value="UPC" selected>UPC</option>
                           <option value="Price">Price</option>
                           <option value="ASIN">ASIN</option>
                            <!--TODO: need to add OEM/SKU-->
                           <option value="Manufacturer">Manufacturer</option>
                         </select>
-                        <input type="text" name="main-search" ng-model="manufacturer" class="form-control manufacturer-input" placeholder="Type a manufacturer" />
+                        <input type="text" name="main-search" ng-model="manufacturer" ng-show="searchby =='Price'" class="form-control manufacturer-input" placeholder="Type a manufacturer" />
                         {% endraw %}
                       </div>
                     </form>
@@ -99,44 +101,39 @@
               {% endfor %}
             {% raw %}
             <h2 id='listingCount'>Listings: {{ listingCount }}</h2>
+            <button type="button" class="btn btn-primary" ng-csv="getTable(listings)" csv-header="getHeader()" filename="aps_app_results.csv">CSV Export</button>
             {% endraw %}
             <br>
+          {% raw %}
           <div id="results">
             <table class="table table-striped">
               <thead>
                 <tr>
-                  <th></th>
-                  <th>ASIN</th>
-                  <th>Manufacturer</th>
-                  <th>Title</th>
-                  <th>Part Number</th>
-                  <th>UPC</th>
-                  <th>Sales Rank</th>
-                  <th>Seller</th>
-                  <th>Price</th>
-                  <th>FBA Price</th>
-                  <th>Our Cost</th>
+                  <th ng-repeat="heading in headings">
+                    <!--<a href="#" ng-click="sortType = heading">
+                    <span ng-show="sortType == heading" class="fa fa-caret-down"></span>-->
+                    {{ heading }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-              {% raw %}
-                <tr ng-repeat="(asin, listing) in listings">
+                <tr ng-repeat="listing in listings | object2Array | orderBy:'-lowest_fba_price'">
                   <td><img ng-src={{listing.imagelist.small_image_url}} alt={{listing.part_number}}></td>
-                  <td>{{asin}}</td>
-                  <td>{{listing.brand}}</td>
-                  <td>{{listing.title}}</td>
-                  <td>{{listing.part_number}}</td>
-                  <td>{{listing.upc}}</td>
-                  <td>{{listing.sales_rank}}</td>
-                  <td>{{listing.seller}}</td>
-                  <td>{{listing.lowest_price}}</td>
-                  <td>{{listing.lowest_fba_price}}</td>
-                  <td>{{listing.cost}}</td>
+                  <td>{{ listing.asin }}</td>
+                  <td>{{ listing.brand }}</td>
+                  <td>{{ listing.title }}</td>
+                  <td>{{ listing.part_number }}</td>
+                  <td>{{ listing.upc }}</td>
+                  <td>{{ listing.sales_rank | number }}</td>
+                  <td>{{ listing.seller }}</td>
+                  <td>{{ listing.lowest_price | currency }}</td>
+                  <td>{{ listing.lowest_fba_price | currency }}</td>
+                  <td>{{ listing.cost | currency }}</td>
                 </tr>
-              {% endraw %}
               </tbody>
             </table>
           </div>
+          {% endraw %}
           {% raw %}
           <img class="col-sm-3 col-sm-offset-4" src="/static/images/spinner.gif" ng-show="loading">
           {% endraw %}
@@ -156,8 +153,13 @@
   <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
   <!-- Angular -->
   <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.13/angular.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ng-csv/0.3.3/ng-csv.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular-resource.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.5/angular-sanitize.min.js"></script>
   <!-- throbber for loading -->
-  <script src="{{ url_for('static', filename='fitsfba/fitsfba.js') }}"></script>
+  <script src="{{ url_for('static', filename='fitsfba/fitsfba_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='fitsfba/fitsfba_services.js') }}"></script>
+    <script src="{{ url_for('static', filename='fitsfba/fitsfba_filters.js') }}"></script>
 
   </body>
   
