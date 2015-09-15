@@ -28,6 +28,8 @@ from flask.views import View
 
 # Application
 import papi
+import dbapi
+import amazon_api
 from mws import mws
 from forms import LoginForm
 from models import Listing, Image, User, Product, Result, db
@@ -97,12 +99,11 @@ class UserView(View):
 
         form = LoginForm()
         if form.validate_on_submit():
-            user = User.query.get(form.email.data)
+            user = dbapi.get_user(form.email.data)
             if user:
                 if bcrypt.check_password_hash(user.password, form.password.data):
                     user.authenticated = True
-                    db.session.add(user)
-                    db.session.commit()
+                    dbapi.add(user)
                     login_user(user, remember=True)
                     return redirect(url_for("home"))
         return render_template("login.html", form=form)
@@ -113,8 +114,7 @@ class UserView(View):
         """Logout the current user."""
         user = current_user
         user.authenticated = False
-        db.session.add(user)
-        db.session.commit()
+        dbapi.add(user)
         logout_user()
         return render_template("logout.html")
 
@@ -133,14 +133,13 @@ class JobView(View):
         TODO: Track who made the job.
         """
         data = json.loads(request.data.decode())
-        print data
         search_by = data['search_by']
         user_input = data['user_input']
-        manufacturer = ''
-
-        # Handle each search with its respective function.
         if 'manufacturer' in data:
             manufacturer = data['manufacturer']
+        else:
+            manufacturer = ''
+        # Handle each search with its respective function.
         if search_by == 'Manufacturer':
             job = q.enqueue_call(
                 func=itemsearch, args=(user_input,), result_ttl=5000
@@ -152,7 +151,9 @@ class JobView(View):
         elif search_by == 'Price' and manufacturer:
             job = q.enqueue_call(
                 func=price_range, args=(user_input, manufacturer,), result_ttl=5000
-            ) 
+            )
+        else:
+            return 'Check search criteria', 500
         data['jobid'] = job.get_id()
         return jsonify(data)
 
@@ -177,9 +178,9 @@ def user_loader(user_id):
 
     :param unicode user_id: user_id (email) user to retrieve
     """
-    return User.query.get(user_id)
+    return dbapi.get_user(user_id)
 
-# Database entry points 
+# Database handlers
 def add_listings_to_db(listings):
     """add a listing to the database"""
     with app.app_context():
@@ -192,40 +193,18 @@ def add_listings_to_db(listings):
             result = Result(
                 result_all=listings,
             )
-            db.session.add(result)
-            db.session.commit()
+            dbapi.add(result)
         except:
             errors.append("Unable to add item to database.")
             return {"error": errors}
         return result.id
 
-def listing_exists(asin):
-    try:
-        listing = Listing.query.filter_by(asin=asin).first()
-    except:
-        listing = None
-    if listing:
-        return True
-    else:
-        return False
-
-def image_exists(asin):
-    try:
-        image = Image.query.filter_by(listing_asin=asin).first()
-    except:
-        image = None
-    if image:
-        return True
-    else:
-        return False
-
-
 def add_listing(asin, listing={}):
     # We may need to add a listing with just an asin.
-    if not (listing_exists(asin) or listing):
-        db.session.add(Listing(asin=asin))
-        db.session.commit()
-    elif not listing_exists(asin):
+    listing_exists = dbapi.listing_exists(asin)
+    if not (listing_exists or listing):
+        dbapi.add(Listing(asin=asin))
+    elif not listing_exists:
         try:
             fprice = float(listing['lowest_price'])
         except:
@@ -239,18 +218,17 @@ def add_listing(asin, listing={}):
                 price = fprice,
                 upc = listing['upc']
             )
-            db.session.add(l)
-            db.session.commit()
-            print('Added {0} to db'.format(l))
+            dbapi.add(l)
+
         except:
             print('Unable to add listing to db')
     else:
         print('{0} already exists in db'.format(asin))
 
 def add_images(asin, images):
-    if not listing_exists(asin):
+    if not dbapi.listing_exists(asin):
         add_listing(asin)
-    if not image_exists(asin):
+    if not dbapi.image_exists(asin):
         try:
             image = Image(
                 tiny_image = images['tiny_image_url'],
@@ -259,9 +237,7 @@ def add_images(asin, images):
                 large_image = images['large_image_url'],
                 listing_asin = asin
             )
-            db.session.add(image)
-            db.session.commit()
-            print('Added {0} to db'.format(image))
+            dbapi.add(image)
         except:
             print('Unable to add {0} to db'.format(asin))
     else:
@@ -276,15 +252,9 @@ def query_price_range_search_db(manufacturer, price_low, price_high):
     :param float price_low: minimum price to search for
     :param float price_high: maximum price to search for
     """
-    print("Manufacturer {0}".format(manufacturer))
     wildcard_manufacturer = '%' + manufacturer + '%'
     with app.app_context():
-        session = db.session()
-        products = session.query(Product).filter(
-            Product.manufacturer.ilike(wildcard_manufacturer), 
-            Product.primary_cost >= price_low,
-            Product.primary_cost <= price_high
-        ).all()
+        products = dbapi.search_by_price(wildcard_manufacturer, price_low, price_high)
         print("Products returned from db:\n{0}".format(products))
     return products
 
@@ -295,37 +265,10 @@ def query_by_upc(upc):
     :param str upc: product upc.
     """
     with app.app_context():
-        session = db.session()
-        products = session.query(Product).filter(Product.upc == upc)
-        product = products.first()
+        product = dbapi.search_by_upc(upc)
     return product
 
-# Amazon API Handlers 
-def paapi_lookup(search_by, user_input):
-    """Handle requests for Amazon's Product Advertising API (PAAPI) 
-    product lookup.
-
-    :param str search_by: earch by Criteria UPC or ASIN.
-    :param str user_input: upc(s)/asin(s).
-    """
-    products = None
-    if search_by == 'UPC':
-        products = paapi_conn.lookup(ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden')
-    elif search_by == 'ASIN':
-        # When searching by ASIN no SearchIndex is accepted
-        products = paapi_conn.lookup(ItemId=user_input, IdType=search_by)
-    return products
-
-def paapi_search(manufacturer):
-    """Handle requests for Amazon's Product Advertising API (PAAPI) 
-    product search.
-
-    :param str manufacturer: the manufacturer to search for.
-    """
-    return paapi_conn.search(
-        SearchIndex='LawnAndGarden', Manufacturer=manufacturer
-    )
-
+# Amazon API Result Handler 
 def paapi_result_handler(products, response):
     """Amazon may return one product or many products.
     If it is one Product it will be type AmazonProduct.
@@ -340,18 +283,6 @@ def paapi_result_handler(products, response):
         for product in products:
             populate_listings(product, response)
 
-
-def mws_request(asin):
-    if isinstance(asin, list):
-        result = mws_conn.get_lowest_offer_listings_for_asin(
-            mws_marketplace, asin, condition='New'
-        )
-    else:
-        result = mws_conn.get_lowest_offer_listings_for_asin(
-            mws_marketplace, [asin], condition='New'
-        )
-    return result
-
 # This App's API response handlers
 def itemsearch(manufacturer):
     """Handle request to Amazon's PAAPI itemsearch.
@@ -361,7 +292,7 @@ def itemsearch(manufacturer):
     :param str manufacturer: the manufacturer to search for.
     """
     response = Response()
-    products = paapi_search(manufacturer)
+    products = amazon_api.paapi_search(manufacturer)
     paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
 
@@ -373,7 +304,7 @@ def itemlookup(search_by, user_input):
     :param str user_input: upc(s)/asin(s).
     """
     response = Response()
-    products = paapi_lookup(search_by, user_input)
+    products = amazon_api.paapi_lookup(search_by, user_input)
     paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
 
@@ -396,7 +327,7 @@ def price_range(user_input, manufacturer):
     listings = None
     for upcs in upc_sectioned_list:
         #TODO: This is updating listings. Very confusing.
-        products = paapi_lookup('UPC', upcs)
+        products = amazon_api.paapi_lookup('UPC', upcs)
         paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
 
@@ -426,7 +357,7 @@ def set_mws_product_information(asin, response):
     param str asin: Amazon's unique identifier for listing
     param obj response: Response object for this search.
     """
-    result = mws_request(asin)
+    result = amazon_api.mws_request(asin)
     mypapi = papi.Papi(result._mydict)
     if asin in mypapi.products:
         product = mypapi.products[asin]
