@@ -35,6 +35,7 @@ from utils import dictHelper, sectionize
 from worker import conn
 from response import Response
 
+
 # Flask configuration
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
@@ -132,6 +133,7 @@ class JobView(View):
         TODO: Track who made the job.
         """
         data = json.loads(request.data.decode())
+        print data
         search_by = data['search_by']
         user_input = data['user_input']
         manufacturer = ''
@@ -163,8 +165,10 @@ class JobView(View):
             return jsonify(result.result_all)
         elif job.is_failed:
             return '', 500
-        else:
+        elif job.is_started:
             return '', 201
+        else:
+            return '', 202
 
 # Helper functions
 @login_manager.user_loader
@@ -332,13 +336,10 @@ def paapi_result_handler(products, response):
     """
     if isinstance(products, AmazonProduct):
         populate_listings(products, response)
-        response.count = 1
     else:
-        count = 0
         for product in products:
             populate_listings(product, response)
-            count += 1
-        response.count += count
+
 
 def mws_request(asin):
     if isinstance(asin, list):

@@ -4,6 +4,7 @@ from copy import deepcopy
 class Response(object):
     
     __response_scheme = { 'sku': '',
+                        'asin': '',
                         'part_number': '',
                         'title': '',
                         'features': '',
@@ -26,7 +27,7 @@ class Response(object):
 
 
     def __init__(self):
-        self._listings = {'count': 0, 'products': {}}
+        self._listings = {'products': {}}
 
     def populate_response(self, product):
         """Populate a listing with product attributes.
@@ -96,13 +97,6 @@ class Response(object):
             flowest_price = lowest_price
         return flowest_price
 
-    @property
-    def count(self):
-        return self.listings['count']
-    
-    @count.setter
-    def count(self, num):
-        self.listings['count'] = num
     
     @property
     def listings(self):
