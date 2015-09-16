@@ -85,7 +85,7 @@ class HomeView(View):
     @app.route('/', methods=["GET"])
     @login_required
     def home():
-        return render_template('index.html')
+        return render_template('fitsfba.html')
 
 class UserView(View):
     """Login and Logout endpoints for application."""
@@ -317,9 +317,7 @@ def price_range(user_input, manufacturer):
     :param str manufacturer: the manufacturer to search.
     """
     response = Response()
-    # get price range and manufacturer
-    price_low, price_high = user_input.replace(' ','').split(',')
-    flow, fhigh = float(price_low), float(price_high)
+    flow, fhigh = get_prices(user_input)
     # get products from database
     our_products = query_price_range_search_db(manufacturer, flow, fhigh)
     # Amazon only allows 10 upcs at a time.
@@ -330,6 +328,16 @@ def price_range(user_input, manufacturer):
         products = amazon_api.paapi_lookup('UPC', upcs)
         paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
+
+def get_prices(user_input):
+    # TODO: catch bad input from users.
+    # get price range and manufacturer
+    try:
+        price_low, price_high = user_input.replace(' ','').split(',')
+        flow, fhigh = float(price_low), float(price_high)
+    except:
+        return 0.0, 0.0
+    return flow, fhigh
 
 # Main function to fill response dict *listings*
 def populate_listings(product, response):

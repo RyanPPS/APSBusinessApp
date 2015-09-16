@@ -1,0 +1,41 @@
+<!-- Input section -->
+<section id="aps-app-calls">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12">
+        <h2 id="search-by-heading2" class="text-center">Discover</h2> 
+        <div class="input-group" id="adv-search">
+        {% raw %}
+          <input type="text" name="main-search" ng-model="input_search" class="form-control search-criteria" placeholder="{{searchByPlaceholder}}" />
+        {% endraw %}
+          <div class="input-group-btn">
+            <div class="btn-group" role="group">
+              <div id="dropdown-searchby" class="dropdown dropdown-lg">
+                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false"><span class="glyphicon glyphicon-chevron-down"></span></button>
+                <div class="dropdown-menu dropdown-menu-right" role="menu">
+                  <form class="form-horizontal" role="form">
+                    <div class="form-group">
+                      <label for="filter">Search by</label>
+                      {% raw %}
+                      <select class="form-control" ng-model="searchby" ng-change="searchBy(searchby)">
+                        <option value="UPC" selected>UPC</option>
+                        <option value="Price">Price</option>
+                        <option value="ASIN">ASIN</option>
+                         <!--TODO: need to add OEM/SKU-->
+                        <option value="Manufacturer">Manufacturer</option>
+                      </select>
+                      <input type="text" name="main-search" ng-model="manufacturer" ng-show="searchby =='Price'" class="form-control manufacturer-input" placeholder="Type a manufacturer" />
+                      {% endraw %}
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <button type="submit" id="searchby-main-button" class="btn btn-primary" ng-click="startSearchResults()" ng-disabled="loading"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!--end aps-app-calls Input section-->

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html ng-app="FitsFbaApp">
+  {% include "head.html" %}
+  <!-- Angular Application -->
+  <body ng-controller="listingsController">
+  <!-- Force footer to bottom with div#wrap -->
+  <div id="wrap">
+  {% include "navigation.html" %}
+  {% include "searchbox.html" %}
+  {% include "search_results.html" %}
+  </div>
+  <div id="push"></div>
+  {% include "footer.html" %}
+  {% include "scripts.html" %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ng-csv/0.3.3/ng-csv.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular-resource.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.5/angular-sanitize.min.js"></script>
+  <script src="{{ url_for('static', filename='app/modules.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/controllers/fitsfba_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/services/csvService.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/services/httpService.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/filters/filters.js') }}"></script>
+  </body>
+</html>

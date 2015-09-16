@@ -3,7 +3,7 @@
 
   'use strict';
 
-  var fitsfba = angular.module('FitsFbaApp', ['ngResource', 'ngSanitize', 'ngCsv']);
+  var fitsfba = angular.module('FitsFbaApp');
 
   //Controllers
   fitsfba.controller('listingsController', 
@@ -12,6 +12,8 @@
     function($scope, $log, $http, $timeout, dataFactory, csvFactory) {
 
       var init = function(){
+        $scope.customMarginTop = '-3px';
+        $scope.imageSource = "/static/logos/fits_logo_sm.png";
         $scope.loading = false;
         $scope.CriteriaError = false;
         $scope.searchby = 'UPC';
@@ -81,11 +83,12 @@
                   // until the timeout is cancelled
                   timeout = $timeout(poller, 1000);
                 },
-              function(error) {
-                $log.log(error);
-                $scope.loading = false;
-                $scope.CriteriaError = true;
-              });
+                function(error) {
+                  $log.log(error);
+                  $scope.loading = false;
+                  $scope.CriteriaError = true;
+                }
+              );
           };
           poller();
       } //end getSearcResults()
