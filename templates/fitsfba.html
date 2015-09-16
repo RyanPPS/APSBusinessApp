@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html ng-app="FitsFbaApp">
+  <head>
+    <title>APS Business Application</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <!-- customer footer css -->
+    <link rel="stylesheet" type="text/css" href="/static/styles/footer.css">
+    <link rel="stylesheet" type="text/css" href="/static/styles/index.css">
+    <style>
+    </style>
+  </head>
+  <!-- Angular Application -->
+  <body ng-controller="listingsController">
+  <!-- Force footer to bottom with div#wrap -->
+  <div id="wrap">
+  <!-- Navigation -->
+  {% include "navigation.html" %}
+  <!-- end navbar -->
+  <!-- Input section -->
+  {% include "searchbox.html" %}
+  <!--end aps-app-calls Input section-->
+  <!-- Search Results -->
+  {% include "listings_table.html" %}
+  <!--end search-results section-->
+  </div>
+  {% include "footer.html" %}
+  {% include "scripts.html" %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ng-csv/0.3.3/ng-csv.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.0.6/angular-resource.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.5/angular-sanitize.min.js"></script>
+  <script src="{{ url_for('static', filename='app/modules.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/controllers/fitsfba_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/services/csvService.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/services/httpService.js') }}"></script>
+  <script src="{{ url_for('static', filename='app/filters/filters.js') }}"></script>
+  </body>
+  
+</html>
