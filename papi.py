@@ -1,14 +1,13 @@
 # papi is an acronym for MWS's Product API. 
 # Receives a dictWrapper of the MWS response.
 # For each response take the listings and products.
-from pprint import pprint as pp
 from utils import dictHelper
 
 class Papi(object):
     """A papi takes in a response from Amazon's mws product api.
 
     :attribute dict response: _mydict (dictWrapper) of response
-    :attribute list _products: Product objects associated with this response
+    :attribute dict _products: Product objects associated with this response
     :attribute list _listings: Listing objects associated with this response
     """
 
@@ -100,10 +99,8 @@ class Papi(object):
         :return dict dlistings: dictionary of Listing objects.
         :return dict dproducts: dictionary of Product objects.
         """
-        print 'WHAT'
         for product in self._retrieve_products_from_response():
             lowest_offer_listing = self.actual_listing(product)
-            print lowest_offer_listing, product
             if lowest_offer_listing is False or not product:
                 # this is an empty listing
                 continue
@@ -123,24 +120,19 @@ class Papi(object):
 
         :return obj: values associated with Product key in self.response
         """
-        #pp(self.response)
         product = self.dictsearch(self.response, 'Product')
-        pp(product)
         return product
 
 
     def actual_listing(self, listing):
         try:
-            #print(self.dictsearch(product, 'LowestOfferListing'))
             return self.dictsearch(listing, 'LowestOfferListing')[0]
         except:
             return False
         
     def retrieve_price(self, listing):
-        print('price')
         try:
             price = self.dictsearch(listing, 'LandedPrice')
-            pp(price)
             if price:
                 return price[0]['Amount']['value']  
         except:
@@ -150,7 +142,6 @@ class Papi(object):
     def retrieve_shipping_price(self, listing):
         try:
             shipping = self.dictsearch(listing, 'Shipping')
-            pp(shipping)
             if shipping:
                 return shipping[0]['Amount']['value']
         except:
@@ -160,7 +151,6 @@ class Papi(object):
     def retrieve_seller(self, listing):
         try:
             seller = self.dictsearch(listing, 'FulfillmentChannel')
-            pp(seller)
             if seller:
                 return seller[0]['value'] 
         except:
