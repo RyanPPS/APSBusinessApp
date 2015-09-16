@@ -16,7 +16,7 @@ margin: 0 auto -150px;
 }
 
 /* Fixed height of the footer here */
-/*#push,*/
+#push,
 #footer {
 height: 150px;
 }
