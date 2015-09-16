@@ -12,13 +12,13 @@ min-height: 100%;
 height: auto !important;
 height: 100%;
 /* Negative indent footer by it's height */
-margin: 0 auto -60px;
+margin: 0 auto -150px;
 }
 
 /* Fixed height of the footer here */
-#push,
+/*#push,*/
 #footer {
-height: 60px;
+height: 150px;
 }
 #footer {
 background-color: #ffffff;
