@@ -71,7 +71,7 @@ mws_conn = mws.Products(
     account_id = mws_credentials['seller_id'],
     secret_key = mws_credentials['secret_key'],
 )
-
+print(dir(dbapi))
 ##########
 # Routes #
 ##########
