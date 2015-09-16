@@ -28,8 +28,8 @@ from flask.views import View
 
 # Application
 import papi
-import dbapi
-import amazon_api
+import apis.dbapi as dbapi
+import apis.amazon_api as amazon_api
 from mws import mws
 from forms import LoginForm
 from models import Listing, Image, User, Product, Result, db
@@ -71,7 +71,7 @@ mws_conn = mws.Products(
     account_id = mws_credentials['seller_id'],
     secret_key = mws_credentials['secret_key'],
 )
-print(dir(dbapi))
+
 ##########
 # Routes #
 ##########
