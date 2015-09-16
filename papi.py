@@ -1,6 +1,7 @@
 # papi is an acronym for MWS's Product API. 
 # Receives a dictWrapper of the MWS response.
 # For each response take the listings and products.
+from pprint import pprint as pp
 from utils import dictHelper
 
 class Papi(object):
@@ -15,27 +16,40 @@ class Papi(object):
         self.response = response
         self._products = {}
         self._listings = []
-        #Auto populates _products and _listings
+        # Auto populates _products and _listings
         self.make_products_and_listings()
 
 
-    
     def make_products_and_listings(self):
         """Makes Listing and Product objects.
         Auto populate _listings and _products.
-        Calls _retrieve_listings_and_products()
+        Calls _listings_and_products()
         """
-        dlistings, dproducts = self._retrieve_listings_and_products()
-        for asin, vals in dlistings.items():
-            tlisting = Listing(asin, vals['price'], vals['shipping'], 
-                                vals['seller'], vals['lowest_price'])
-            self._listings.append(tlisting)
-            dproducts[asin]['listings'].append(tlisting)
+        dlistings, dproducts = self._listings_and_products()
+        self._make_listings(dlistings, dproducts)
+        self._make_products(dproducts)
+
+    def _make_products(self, dproducts):
         for asin, vals in dproducts.items():
-            self._products[asin] = Product(asin, vals['listings'], 
-                                           vals['lowest_price'], 
-                                           vals['shipping'],
-                                           vals['lowest_fba_price'])
+            self._products[asin] = Product(
+                asin, vals['listings'], 
+                vals['lowest_price'], 
+                vals['shipping'],
+                vals['lowest_fba_price']
+            )
+
+    def _make_listings(self, dlistings, dproducts):
+        for asin, vals in dlistings.items():
+            listing = Listing(
+                asin, 
+                vals['price'], 
+                vals['shipping'], 
+                vals['seller'], 
+                vals['lowest_price']
+            )
+            self._listings.append(listing)
+            dproducts[asin]['listings'].append(listing)
+
 
     @property 
     def products(self):
@@ -47,85 +61,112 @@ class Papi(object):
         """:return list self._listings:"""
         return self._listings
     
+    def _listings_and_products(self):
+        dlistings = {}
+        dproducts = {}
+        self.populate_listings_and_products(dlistings, dproducts)
+        return dlistings, dproducts
 
+    def init_listing_and_product(self, asin, listings, products):
+        listings[asin] = { 
+            'price':'',
+            'shipping': '',
+            'seller': '',
+            'lowest_price': False
+        }
+        products[asin] = { 
+            'listings': [],
+            'lowest_price': '',
+            'shipping': '',
+            'lowest_fba_price': ''
+        }
+
+    def populate_listing_and_product(self, current_listing, current_product, lowest_offer_listing):
+        lowest_fba_seller_found = False
+        for i, listing in enumerate(lowest_offer_listing):
+            current_listing['price'] = self.retrieve_price(listing)
+            current_listing['shipping'] = self.retrieve_shipping_price(listing)
+            current_listing['seller'] = self.retrieve_seller(listing)
+            # First listing will be the lowest.
+            if i == 0:
+                self.set_lowest_price(current_listing, current_product)
+            if not lowest_fba_seller_found and current_listing['seller'] == 'Amazon':
+                self.set_lowest_fba_price(current_listing, current_product)
+                lowest_fba_seller_found = True
+
+    def populate_listings_and_products(self, listings, products):
+        """Make a dictionaries out of the listings/products in the response
+
+        :return dict dlistings: dictionary of Listing objects.
+        :return dict dproducts: dictionary of Product objects.
+        """
+        print 'WHAT'
+        for product in self._retrieve_products_from_response():
+            lowest_offer_listing = self.actual_listing(product)
+            print lowest_offer_listing, product
+            if lowest_offer_listing is False or not product:
+                # this is an empty listing
+                continue
+            asin = product['Identifiers']['MarketplaceASIN']['ASIN']['value']
+            self.init_listing_and_product(asin, listings, products)
+            self.populate_listing_and_product(listings[asin], products[asin], lowest_offer_listing)
+
+    def set_lowest_price(self, current_listing, current_product):
+        current_listing['lowest_price'] = True
+        current_product['lowest_price'] = current_listing['price']
+
+    def set_lowest_fba_price(self, current_listing, current_product):
+        current_product['lowest_fba_price'] = current_listing['price']
 
     def _retrieve_products_from_response(self):
         """Search for all values of Product dict in self.response.
 
         :return obj: values associated with Product key in self.response
         """
-        return self.dictsearch(self.response, 'Product')
+        #pp(self.response)
+        product = self.dictsearch(self.response, 'Product')
+        pp(product)
+        return product
 
-    def _retrieve_listings_and_products(self):
-        """Make a dictionary out of the listings in the response
 
-        :return dict dlistings: dictionary of Listing objects.
-        :return dict dproducts: dictionary of Product objects.
-        """
-        dlistings = {}
-        dproducts = {}
-        for product in self._retrieve_products_from_response():
-            if not product:
-                continue
-            asin = product['Identifiers']['MarketplaceASIN']['ASIN']['value']
-            dproducts[asin] = { 'listings': [],
-                                'lowest_price': '',
-                                'shipping': '',
-                                'lowest_fba_price': ''}
-            dlistings[asin] = { 'price':'',
-                                'shipping': '',
-                                'seller': '',
-                                'lowest_price': False}
-            current_product = dproducts[asin]
-            current_listing = dlistings[asin]
-            try:
-                lowest_offer_listing = self.dictsearch(product, 'LowestOfferListing')[0]
-            except:
-                # this is an empty listing
-                continue
-            lowest_fba_seller_found = False
-            for i, listing in enumerate(lowest_offer_listing):
-                try:
-                    price = self.dictsearch(listing, 'LandedPrice')
-                    if price:
-                        current_listing['price'] = price[0]['Amount']['value']
-                    else:
-                        # This was an empty list and a listing with no information.
-                        # TODO: Find out why we receive empty listings.
-                        pass   
-                except:
-                    print("Unable to find price. {0}".format(self.dictsearch(listing, 'LandedPrice')))
-                try:
-                    shipping = self.dictsearch(listing, 'Shipping')
-                    if shipping:
-                        current_listing['shipping'] = shipping[0]['Amount']['value']
-                    else:
-                        # This was an empty list and a listing with no information.
-                        # TODO: Find out why we receive empty listings.
-                        pass   
-                except:
-                    print("Unable to find shipping. {0}".format(self.dictsearch(listing, 'Shipping')))
-                try:
-                    seller = self.dictsearch(listing, 'FulfillmentChannel')
-                    if seller:
-                        current_listing['seller'] = seller[0]['value']
-                    else:
-                        # This was an empty list and a listing with no information.
-                        # TODO: Find out why we receive empty listings.
-                        pass   
-                except:
-                    print("Unable to find price. {0}".format(self.dictsearch(listing, 'FulFillmentChannel')))
-                # First listing will be the lowest.
-                if i == 0:
-                    current_listing['lowest_price'] = True
-                    current_product['lowest_price'] = current_listing['price']
-                if not lowest_fba_seller_found and current_listing['seller'] == 'Amazon':
-                    current_product['lowest_fba_price'] = current_listing['price']
-                    lowest_fba_seller_found = True
+    def actual_listing(self, listing):
+        try:
+            #print(self.dictsearch(product, 'LowestOfferListing'))
+            return self.dictsearch(listing, 'LowestOfferListing')[0]
+        except:
+            return False
+        
+    def retrieve_price(self, listing):
+        print('price')
+        try:
+            price = self.dictsearch(listing, 'LandedPrice')
+            pp(price)
+            if price:
+                return price[0]['Amount']['value']  
+        except:
+            print("Unable to find price. {0}")
+            return 0.0
 
-        return dlistings, dproducts
+    def retrieve_shipping_price(self, listing):
+        try:
+            shipping = self.dictsearch(listing, 'Shipping')
+            pp(shipping)
+            if shipping:
+                return shipping[0]['Amount']['value']
+        except:
+            print("Unable to find shipping price.")
+            return 0.0
 
-    
+    def retrieve_seller(self, listing):
+        try:
+            seller = self.dictsearch(listing, 'FulfillmentChannel')
+            pp(seller)
+            if seller:
+                return seller[0]['value'] 
+        except:
+            print("Unable to find price.")
+        return None
+
     def dictsearch(self, obj, key):
         """Recursively searches through a *obj* for *key*
         dictHelper() is a custom utility class that helps target keys
@@ -135,11 +176,6 @@ class Papi(object):
         """
         dh = dictHelper()
         return dh.dsearch(obj, key)
-
-
-
-
-
 
 
 class Product(object):
@@ -208,9 +244,6 @@ class Product(object):
         :return list _shipping
         """
         return self._shipping
-    
-
-    
 
 
 class Listing(object):
