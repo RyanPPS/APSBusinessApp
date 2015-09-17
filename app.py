@@ -167,11 +167,14 @@ def user_loader(user_id):
 def add_listings_to_db(listings):
     """add a listing to the database"""
     with app.app_context():
-        errors = []
         products = listings['products']
         for listing in products:
             add_listing(listing, products[listing])
             add_images(listing, products[listing]['imagelist'])
+
+def add_result(listings):
+    errors = []
+    with app.app_context():
         try:
             result = Result(
                 result_all=listings,
@@ -202,7 +205,6 @@ def add_listing(asin, listing={}):
                 upc = listing['upc']
             )
             dbapi.add(l)
-
         except:
             print('Unable to add listing to db')
     else:
@@ -278,7 +280,9 @@ def itemsearch(manufacturer):
     response = Response()
     products = amazon_api.paapi_search(manufacturer)
     paapi_result_handler(products, response)
-    return add_listings_to_db(response.listings)
+    listings = response.listings
+    add_listings_to_db(listings)
+    return add_result(listings)
 
 def itemlookup(search_by, user_input):
     """Handle request to Amazon's PAAPI lookup. 
@@ -290,7 +294,9 @@ def itemlookup(search_by, user_input):
     response = Response()
     products = amazon_api.paapi_lookup(search_by, user_input)
     paapi_result_handler(products, response)
-    return add_listings_to_db(response.listings)
+    listings = response.listings
+    add_listings_to_db(listings)
+    return add_result(listings)
 
 def price_range(manufacturer, low_price, high_price):
     """Handle requests to search by price range.
@@ -306,12 +312,13 @@ def price_range(manufacturer, low_price, high_price):
     our_products = query_price_range_search_db(manufacturer, flow, fhigh)
     # Amazon only allows 10 upcs at a time.
     upc_sectioned_list = sectionize(our_products)
-    listings = None
     for upcs in upc_sectioned_list:
         #TODO: This is updating listings. Very confusing.
         products = amazon_api.paapi_lookup('UPC', upcs)
         paapi_result_handler(products, response)
-    return add_listings_to_db(response.listings)
+    listings = response.listings
+    add_listings_to_db(listings)
+    return add_result(listings)
 
 def get_prices(low_price, high_price):
     # TODO: catch bad input from users.
