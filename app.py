@@ -52,26 +52,6 @@ bcrypt = Bcrypt(app)
 #Redis
 q = Queue(connection=conn)
 
-# Amazon product advertising API (PAAPI) configuration
-paapi_conn = AmazonAPI(
-    os.environ['AMAZON_ACCESS_KEY'], 
-    os.environ['AMAZON_SECRET_KEY'], 
-    os.environ['AMAZON_ASSOC_TAG']
-)
-
-# Amazon Marketplace Web Services API (MWS) configuration
-mws_marketplace = os.environ['MWS_MARKETPLACE_ID']
-mws_credentials =  {
-    'access_key': os.environ['MWS_AWS_ACCESS_KEY_ID'], 
-    'seller_id': os.environ['MWS_SELLER_ID'], 
-    'secret_key': os.environ['MWS_SECRET_KEY']
-}
-mws_conn = mws.Products(
-    access_key = mws_credentials['access_key'],
-    account_id = mws_credentials['seller_id'],
-    secret_key = mws_credentials['secret_key'],
-)
-
 ##########
 # Routes #
 ##########
@@ -135,22 +115,25 @@ class JobView(View):
         data = json.loads(request.data.decode())
         search_by = data['search_by']
         user_input = data['user_input']
-        if 'manufacturer' in data:
-            manufacturer = data['manufacturer']
+        if 'low_price' in data and 'high_price' in data:
+            low_price = data['low_price']
+            high_price = data['high_price']
+            price_search = [search_by == 'Price', low_price, high_price, user_input]
         else:
-            manufacturer = ''
+            low_price = 0.0
+            high_price = 0.0
         # Handle each search with its respective function.
-        if search_by == 'Manufacturer':
+        if search_by == 'Manufacturer' and user_input:
             job = q.enqueue_call(
                 func=itemsearch, args=(user_input,), result_ttl=5000
             )
-        elif search_by == 'UPC' or search_by == 'ASIN':
+        elif (search_by == 'UPC' or search_by == 'ASIN') and user_input:
             job = q.enqueue_call(
                 func=itemlookup, args=(search_by, user_input,), result_ttl=5000
             )
-        elif search_by == 'Price' and manufacturer:
+        elif all(price_search):
             job = q.enqueue_call(
-                func=price_range, args=(user_input, manufacturer,), result_ttl=5000
+                func=price_range, args=(user_input, low_price, high_price), result_ttl=5000
             )
         else:
             return 'Check search criteria', 500
@@ -259,6 +242,7 @@ def query_price_range_search_db(manufacturer, price_low, price_high):
     return products
 
 def query_by_upc(upc):
+    print(upc)
     """Get a product from the database by upc. 
     Should be only one so grab the first one from the query result.
 
@@ -308,7 +292,7 @@ def itemlookup(search_by, user_input):
     paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
 
-def price_range(user_input, manufacturer):
+def price_range(manufacturer, low_price, high_price):
     """Handle requests to search by price range.
     We actually search the database for products from *manufacturer*
     within *user_input* values.
@@ -317,7 +301,7 @@ def price_range(user_input, manufacturer):
     :param str manufacturer: the manufacturer to search.
     """
     response = Response()
-    flow, fhigh = get_prices(user_input)
+    flow, fhigh = get_prices(low_price, high_price)
     # get products from database
     our_products = query_price_range_search_db(manufacturer, flow, fhigh)
     # Amazon only allows 10 upcs at a time.
@@ -329,12 +313,11 @@ def price_range(user_input, manufacturer):
         paapi_result_handler(products, response)
     return add_listings_to_db(response.listings)
 
-def get_prices(user_input):
+def get_prices(low_price, high_price):
     # TODO: catch bad input from users.
     # get price range and manufacturer
     try:
-        price_low, price_high = user_input.replace(' ','').split(',')
-        flow, fhigh = float(price_low), float(price_high)
+        flow, fhigh = float(low_price), float(high_price)
     except:
         return 0.0, 0.0
     return flow, fhigh
@@ -350,11 +333,11 @@ def populate_listings(product, response):
     asin = product.asin
     response.populate_response(product)
     listing = response.listings['products'][asin]
-    try:
-        our_product = query_by_upc(product.upc)
+    our_product = query_by_upc(product.upc)
+    if our_product:
         response.set_cost(asin, our_product.primary_cost)
-    except:
-        print("{0} has no UPC.".format(product.title))
+    else:
+        print("{0} has no UPC.".format(product.asin))
     set_mws_product_information(asin, response)
 
 def set_mws_product_information(asin, response):

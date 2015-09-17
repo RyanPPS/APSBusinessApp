@@ -3,27 +3,29 @@ from copy import deepcopy
 
 class Response(object):
     
-    __response_scheme = { 'sku': '',
-                        'asin': '',
-                        'part_number': '',
-                        'title': '',
-                        'features': '',
-                        'sales_rank': '',
-                        'price_and_currency': '',
-                        'LowestNewPrice': '',
-                        'list_price': '',
-                        'offer_url': '',
-                        'manufacturer': '',
-                        'imagelist': {
-                            'large_image_url': '',
-                            'medium_image_url': '',
-                            'small_image_url': '',
-                            'tiny_image_url': '',
-                        },
-                        'brand': '',
-                        'ean': '',
-                        'upc': '',
-                        'color': '',}
+    __response_scheme = { 
+        'sku': '',
+        'asin': '',
+        'part_number': '',
+        'title': '',
+        'features': '',
+        'sales_rank': '',
+        'price_and_currency': '',
+        'LowestNewPrice': '',
+        'list_price': '',
+        'offer_url': '',
+        'manufacturer': '',
+        'imagelist': {
+            'large_image_url': '',
+            'medium_image_url': '',
+            'small_image_url': '',
+            'tiny_image_url': '',
+        },
+        'brand': '',
+        'ean': '',
+        'upc': '',
+        'color': '',
+    }
 
 
     def __init__(self):
@@ -43,6 +45,7 @@ class Response(object):
 
     def push_product(self, asin):
         self.listings['products'][asin] = deepcopy(self.__response_scheme)
+
 
     def set_cost(self, asin, cost):
         self.listings['products'][asin]['cost'] = cost

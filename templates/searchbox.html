@@ -24,7 +24,8 @@
                          <!--TODO: need to add OEM/SKU-->
                         <option value="Manufacturer">Manufacturer</option>
                       </select>
-                      <input type="text" name="main-search" ng-model="manufacturer" ng-show="searchby =='Price'" class="form-control manufacturer-input" placeholder="Type a manufacturer" />
+                      <input type="text" name="main-search" ng-model="low_price" ng-show="searchby =='Price'" class="form-control manufacturer-input" placeholder="Enter minimum price" />
+                      <input type="text" name="main-search" ng-model="high_price" ng-show="searchby =='Price'" class="form-control manufacturer-input" placeholder="Enter maximum price" />
                       {% endraw %}
                     </div>
                   </form>

@@ -19,11 +19,12 @@
         * get the results when the job is finished.
         */
         // Make request data.
-        var request = {}
+        var request = {};
         request.user_input = $scope.input_search;
         request.search_by = $scope.searchby;
-        if($scope.manufacturer) {
-          request.manufacturer = $scope.manufacturer;
+        if($scope.low_price && $scope.high_price) {
+          request.low_price = $scope.low_price;
+          request.high_price = $scope.high_price;
         }
         // start the request
         var start = dataFactory.start();
