@@ -76,8 +76,7 @@ class UserView(View):
         For POSTS, login the current userby processing the form.
         """
         # TODO: Make roles.
-
-        form = LoginForm()
+        form = LoginForm(request.form)
         if form.validate_on_submit():
             user = dbapi.get_user(form.email.data)
             if user:
@@ -115,6 +114,7 @@ class JobView(View):
         data = json.loads(request.data.decode())
         search_by = data['search_by']
         user_input = data['user_input']
+        print user_input
         if 'low_price' in data and 'high_price' in data:
             low_price = data['low_price']
             high_price = data['high_price']
@@ -144,15 +144,15 @@ class JobView(View):
     @login_required
     def results(job_key):
         job = Job.fetch(job_key, connection=conn)
-        if job.is_finished:
+        if job.is_started:
+            return 'We are working on your request.', 201
+        elif job.is_finished:
             result = Result.query.filter_by(id=job.result).first()
             return jsonify(result.result_all)
         elif job.is_failed:
-            return '', 500
-        elif job.is_started:
-            return '', 201
+            return 'There was a problem with your query.', 500
         else:
-            return '', 202
+            return 'We have processed your request.', 202
 
 # Helper functions
 @login_manager.user_loader
@@ -172,7 +172,7 @@ def add_listings_to_db(listings):
             add_listing(listing, products[listing])
             add_images(listing, products[listing]['imagelist'])
 
-def add_result(listings):
+def save_listings_to_result(listings):
     errors = []
     with app.app_context():
         try:
@@ -244,7 +244,6 @@ def query_price_range_search_db(manufacturer, price_low, price_high):
     return products
 
 def query_by_upc(upc):
-    print(upc)
     """Get a product from the database by upc. 
     Should be only one so grab the first one from the query result.
 
@@ -255,7 +254,7 @@ def query_by_upc(upc):
     return product
 
 # Amazon API Result Handler 
-def paapi_result_handler(products, response):
+def populate_response_listings(products, response):
     """Amazon may return one product or many products.
     If it is one Product it will be type AmazonProduct.
     This is how amazon.api module handles it.
@@ -278,11 +277,11 @@ def itemsearch(manufacturer):
     :param str manufacturer: the manufacturer to search for.
     """
     response = Response()
-    products = amazon_api.paapi_search(manufacturer)
-    paapi_result_handler(products, response)
+    products = amazon_api.products_search(manufacturer)
+    populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
-    return add_result(listings)
+    return save_listings_to_result(listings)
 
 def itemlookup(search_by, user_input):
     """Handle request to Amazon's PAAPI lookup. 
@@ -292,11 +291,11 @@ def itemlookup(search_by, user_input):
     :param str user_input: upc(s)/asin(s).
     """
     response = Response()
-    products = amazon_api.paapi_lookup(search_by, user_input)
-    paapi_result_handler(products, response)
+    products = amazon_api.product_lookup(search_by, user_input)
+    populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
-    return add_result(listings)
+    return save_listings_to_result(listings)
 
 def price_range(manufacturer, low_price, high_price):
     """Handle requests to search by price range.
@@ -314,11 +313,11 @@ def price_range(manufacturer, low_price, high_price):
     upc_sectioned_list = sectionize(our_products)
     for upcs in upc_sectioned_list:
         #TODO: This is updating listings. Very confusing.
-        products = amazon_api.paapi_lookup('UPC', upcs)
-        paapi_result_handler(products, response)
+        products = amazon_api.product_lookup('UPC', upcs)
+        populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
-    return add_result(listings)
+    return save_listings_to_result(listings)
 
 def get_prices(low_price, high_price):
     # TODO: catch bad input from users.
@@ -340,12 +339,17 @@ def populate_listings(product, response):
     asin = product.asin
     response.populate_response(product)
     listing = response.listings['products'][asin]
+    our_cost = get_our_cost(product.upc)
+    response.set_cost(asin, our_cost)
+    set_mws_product_information(asin, response)
+
+def get_our_price(upc):
     our_product = query_by_upc(product.upc)
     if our_product:
-        response.set_cost(asin, our_product.primary_cost)
+        return our_product.primary_cost
     else:
         print("{0} has no UPC.".format(product.asin))
-    set_mws_product_information(asin, response)
+        return None
 
 def set_mws_product_information(asin, response):
     """ Get product from MWS API.

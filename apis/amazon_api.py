@@ -2,7 +2,8 @@
 import os
 from amazon.api import AmazonAPI, AmazonProduct
 from mws import mws
-paapi_conn = AmazonAPI(
+# Amazon Product Advertising API
+paapi = AmazonAPI(
     os.environ['AMAZON_ACCESS_KEY'], 
     os.environ['AMAZON_SECRET_KEY'], 
     os.environ['AMAZON_ASSOC_TAG']
@@ -21,30 +22,31 @@ mws_conn = mws.Products(
     secret_key=mws_credentials['secret_key']
 )
 
-def paapi_lookup(search_by, user_input):
+def product_lookup(search_by, user_input):
     """Handle requests for Amazon's Product Advertising API (PAAPI) 
     product lookup.
     
     :param str search_by: earch by Criteria UPC or ASIN.
     :param str user_input: upc(s)/asin(s).
     """
-    products = None
     if search_by == 'UPC':
-        products = paapi_conn.lookup(
+        products = paapi.lookup(
             ItemId=user_input, IdType=search_by, SearchIndex='LawnAndGarden'
         )
     elif search_by == 'ASIN':
-        products = paapi_conn.lookup(ItemId=user_input, IdType=search_by)
+        products = paapi.lookup(ItemId=user_input, IdType=search_by)
+    else:
+        products = None
     return products
 
 
-def paapi_search(manufacturer):
+def products_search(manufacturer):
     """Handle requests for Amazon's Product Advertising API (PAAPI) 
     product search.
     
     :param str manufacturer: the manufacturer to search for.
     """
-    return paapi_conn.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
+    return paapi.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
 
 
 def mws_request(asin):

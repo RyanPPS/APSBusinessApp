@@ -4,8 +4,8 @@ import os
 class Config(object):
     DEBUG = False
     TESTING = False
-    CSRF_ENABLED = True
-    SECRET_KEY = 'change-this-key' #os.environ['APP_SECRET_KEY']
+    WTF_CSRF_ENABLED = True
+    SECRET_KEY = os.environ['APP_SECRET_KEY']
     SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
 
 
@@ -25,5 +25,5 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-
+    WTF_CSRF_ENABLED = False
 
