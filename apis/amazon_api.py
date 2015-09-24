@@ -1,5 +1,7 @@
 
+
 import os
+from pprint import pprint
 from amazon.api import AmazonAPI, AmazonProduct
 from mws import mws
 # Amazon Product Advertising API
@@ -16,7 +18,7 @@ mws_credentials = {
     'seller_id': os.environ['MWS_SELLER_ID'],
     'secret_key': os.environ['MWS_SECRET_KEY']
 }
-mws_conn = mws.Products(
+product_mws = mws.Products(
     access_key=mws_credentials['access_key'], 
     account_id=mws_credentials['seller_id'], 
     secret_key=mws_credentials['secret_key']
@@ -49,13 +51,24 @@ def products_search(manufacturer):
     return paapi.search(SearchIndex='LawnAndGarden', Manufacturer=manufacturer)
 
 
-def mws_request(asin):
+def get_lowest_offer_listings_for_asin(asins):
+    if isinstance(asins, list):
+        result = product_mws.get_lowest_offer_listings_for_asin(
+            mws_marketplace, asins, condition='New'
+        )
+    else:
+        result = product_mws.get_lowest_offer_listings_for_asin(
+            mws_marketplace, [asins], condition='New'
+        )
+    return result
+
+def get_my_price_for_asin(asin):
     if isinstance(asin, list):
-        result = mws_conn.get_lowest_offer_listings_for_asin(
+        result = product_mws.get_lowest_offer_listings_for_asin(
             mws_marketplace, asin, condition='New'
         )
     else:
-        result = mws_conn.get_lowest_offer_listings_for_asin(
+        result = product_mws.get_lowest_offer_listings_for_asin(
             mws_marketplace, [asin], condition='New'
         )
     return result
