@@ -1,3 +1,10 @@
 #listingCount {
     margin-top: -20px;
 }
+
+.spinner-img {
+    max-height: 120px;
+    max-width: 120px;
+    text-align: center;
+
+}

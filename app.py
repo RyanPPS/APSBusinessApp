@@ -7,6 +7,7 @@
 # Python
 import json
 import os
+from pprint import pprint
 
 # Third Party
 from amazon.api import AmazonAPI, AmazonProduct
@@ -27,18 +28,19 @@ from flask.ext.sqlalchemy import SQLAlchemy
 from flask.views import View
 
 # Application
-import papi
+from papi import PAPI
 import apis.dbapi as dbapi
 import apis.amazon_api as amazon_api
 from mws import mws
 from forms import LoginForm
 from models import Listing, Image, User, Product, Result, db
-from utils import dictHelper, sectionize
+from utils import sectionize_upcs, sectionize_into_lists
 from worker import conn
 from response import Response
 
 
 # Flask configuration
+
 app = Flask(__name__)
 app.config.from_object(os.environ['APP_SETTINGS'])
 db.init_app(app)
@@ -50,15 +52,18 @@ login_manager.login_view = "login"
 bcrypt = Bcrypt(app)
 
 #Redis
-q = Queue(connection=conn)
+highq = Queue(name='high', default_timeout=30, connection=conn)
+lowq = Queue(name='low', default_timeout=600, connection=conn )
+defaultq = Queue(connection=conn)
 
 ##########
 # Routes #
 ##########
+
 class HomeView(View):
-    """Main page for application. 
+    """Main page for application.
     Main view is a Single Page application (SPA)
-    All presentation besides login and logout views 
+    All presentation besides login and logout views
     are presented here.
     """
 
@@ -72,7 +77,7 @@ class UserView(View):
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        """For GET requests, display the login form. 
+        """For GET requests, display the login form.
         For POSTS, login the current userby processing the form.
         """
         # TODO: Make roles.
@@ -99,8 +104,9 @@ class UserView(View):
 
 
 class JobView(View):
-    """There are two endpoints for the application: /start and /result/<job_key>.
-    They are handled by their respective functions. 
+    """There are two endpoints for the application:
+        /start and /result/<job_key>.
+    They are handled by their respective functions.
 
     Start a job with /start and retrieve it with /result/<job_key>.
     """
@@ -108,32 +114,42 @@ class JobView(View):
     @app.route('/start', methods=['POST'])
     @login_required
     def start():
-        """Returns a dict with *job.id* so we can keep track of each job and what it requested.
+        """Returns a dict with *job.id* so we can keep track
+        of each job and what it requested.
         TODO: Track who made the job.
         """
         data = json.loads(request.data.decode())
         search_by = data['search_by']
         user_input = data['user_input']
-        print user_input
         if 'low_price' in data and 'high_price' in data:
             low_price = data['low_price']
             high_price = data['high_price']
-            price_search = [search_by == 'Price', low_price, high_price, user_input]
+            price_search = [
+                search_by == 'Price',
+                low_price,
+                high_price,
+            ]
         else:
             low_price = 0.0
             high_price = 0.0
         # Handle each search with its respective function.
         if search_by == 'Manufacturer' and user_input:
-            job = q.enqueue_call(
-                func=itemsearch, args=(user_input,), result_ttl=5000
+            job = lowq.enqueue_call(
+                func=itemsearch,
+                args=(user_input,),
+                result_ttl=5000
             )
         elif (search_by == 'UPC' or search_by == 'ASIN') and user_input:
-            job = q.enqueue_call(
-                func=itemlookup, args=(search_by, user_input,), result_ttl=5000
+            job = lowq.enqueue_call(
+                func=itemlookup,
+                args=(search_by, user_input,),
+                result_ttl=5000
             )
         elif all(price_search):
-            job = q.enqueue_call(
-                func=price_range, args=(user_input, low_price, high_price), result_ttl=5000
+            job = lowq.enqueue_call(
+                func=price_range,
+                args=(user_input, low_price, high_price),
+                result_ttl=5000
             )
         else:
             return 'Check search criteria', 500
@@ -172,16 +188,19 @@ def add_listings_to_db(listings):
             add_listing(listing, products[listing])
             add_images(listing, products[listing]['imagelist'])
 
-def save_listings_to_result(listings):
-    errors = []
+def save_listings_to_result(listings, errors=[]):
+    errors = errors
     with app.app_context():
-        try:
-            result = Result(
-                result_all=listings,
-            )
-            dbapi.add(result)
-        except:
-            errors.append("Unable to add item to database.")
+        if not errors:
+            try:
+                result = Result(
+                    result_all=listings,
+                )
+                dbapi.add(result)
+            except:
+                errors.append("Unable to add item to database.")
+                return {"error": errors}
+        else:
             return {"error": errors}
         return result.id
 
@@ -230,30 +249,39 @@ def add_images(asin, images):
 
 def query_price_range_search_db(manufacturer, price_low, price_high):
     """User can specify what items to lookup on Amazon from the database.
-    User can choose manufacturer and a price range. 
+    User can choose manufacturer and a price range.
     Price range is optional.
 
     :param str manufacturer: the manufacturer to search for.
     :param float price_low: minimum price to search for
     :param float price_high: maximum price to search for
     """
-    wildcard_manufacturer = '%' + manufacturer + '%'
     with app.app_context():
-        products = dbapi.search_by_price(wildcard_manufacturer, price_low, price_high)
-        print("Products returned from db:\n{0}".format(products))
+        if manufacturer:
+            wildcard_manufacturer = '%' + manufacturer + '%'
+            products = dbapi.productTable().search_by_price(
+                price_low,
+                price_high,
+                wildcard_manufacturer
+            )
+        else:
+            products = dbapi.productTable().search_by_price(
+                price_low,
+                price_high
+            )
     return products
 
 def query_by_upc(upc):
-    """Get a product from the database by upc. 
+    """Get a product from the database by upc.
     Should be only one so grab the first one from the query result.
 
     :param str upc: product upc.
     """
     with app.app_context():
-        product = dbapi.search_by_upc(upc)
+        product = dbapi.productTable().search_by_upc(upc)
     return product
 
-# Amazon API Result Handler 
+# Amazon API Result Handler
 def populate_response_listings(products, response):
     """Amazon may return one product or many products.
     If it is one Product it will be type AmazonProduct.
@@ -264,34 +292,52 @@ def populate_response_listings(products, response):
     """
     if isinstance(products, AmazonProduct):
         populate_listings(products, response)
+        set_mws_product_information([products.asin], response)
     else:
+        asins = []
         for product in products:
+            asins.append(product.asin)
             populate_listings(product, response)
+        set_mws_product_information(asins, response)
 
 # This App's API response handlers
 def itemsearch(manufacturer):
     """Handle request to Amazon's PAAPI itemsearch.
 
-    TODO: Allow user to select category. Currently LawnAndGarden. 
+    TODO: Allow user to select category. Currently LawnAndGarden.
 
     :param str manufacturer: the manufacturer to search for.
     """
     response = Response()
-    products = amazon_api.products_search(manufacturer)
+    try:
+        products = amazon_api.products_search(manufacturer)
+    except:
+        print('Unable to process {0}'.format(manufacturer))
+        return save_listings_to_result(
+            {},
+            errors="Unable to perform search"
+        )
     populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
     return save_listings_to_result(listings)
 
 def itemlookup(search_by, user_input):
-    """Handle request to Amazon's PAAPI lookup. 
+    """Handle request to Amazon's PAAPI lookup.
     Currently the user can search by ASIN and UPC.
 
     :param str search_by: earch by Criteria UPC or ASIN.
     :param str user_input: upc(s)/asin(s).
     """
     response = Response()
-    products = amazon_api.product_lookup(search_by, user_input)
+    try:
+        products = amazon_api.product_lookup(search_by, user_input)
+    except:
+        print('Unable to process {0}'.format(user_input))
+        return save_listings_to_result(
+            {},
+            errors="Unable to perform search"
+        )
     populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
@@ -308,12 +354,21 @@ def price_range(manufacturer, low_price, high_price):
     response = Response()
     flow, fhigh = get_prices(low_price, high_price)
     # get products from database
-    our_products = query_price_range_search_db(manufacturer, flow, fhigh)
+    our_products = query_price_range_search_db(
+        manufacturer,
+        flow,
+        fhigh
+    )
     # Amazon only allows 10 upcs at a time.
-    upc_sectioned_list = sectionize(our_products)
+    upc_sectioned_list = sectionize_upcs(our_products)
     for upcs in upc_sectioned_list:
-        #TODO: This is updating listings. Very confusing.
-        products = amazon_api.product_lookup('UPC', upcs)
+        try:
+            products = amazon_api.product_lookup('UPC', upcs)
+        except:
+            print('Unable to process {0}'.format(upcs))
+            # TODO: currently we just throw away the whole section of UPCS
+            # we should just filtered out the bad UPC and try again.
+            continue
         populate_response_listings(products, response)
     listings = response.listings
     add_listings_to_db(listings)
@@ -341,32 +396,58 @@ def populate_listings(product, response):
     listing = response.listings['products'][asin]
     our_cost = get_our_cost(product.upc)
     response.set_cost(asin, our_cost)
-    set_mws_product_information(asin, response)
+    #set_mws_product_information(asin, response)
 
-def get_our_price(upc):
-    our_product = query_by_upc(product.upc)
+def get_our_cost(upc):
+    if upc is None:
+        return None
+    our_product = query_by_upc(upc)
     if our_product:
         return our_product.primary_cost
     else:
-        print("{0} has no UPC.".format(product.asin))
+        print("{0} has no UPC.".format(our_product))
         return None
 
-def set_mws_product_information(asin, response):
+def set_mws_product_information(asins, response):
     """ Get product from MWS API.
     Then make a MWS Product API object (Papi).
     Then set lowest price, lowest fba price, and seller in *response*.
 
-    param str asin: Amazon's unique identifier for listing
+    param str asins: Amazon's unique identifier for listing
     param obj response: Response object for this search.
     """
-    result = amazon_api.mws_request(asin)
-    mypapi = papi.Papi(result._mydict)
-    if asin in mypapi.products:
-        product = mypapi.products[asin]
-        response.set_lowest_price_mws(asin, product.lowest_price)
-        response.set_lowest_fba_price_mws(asin, product.lowest_fba_price)
-        response.set_seller(asin, product.get_cheapest_seller())
+    if len(asins) > 10:
+        sections = sectionize_into_lists(asins)
+    else:
+        sections = [asins]
+    for section in sections:
+        print('searching mws....')
+        try:
+            result = amazon_api.get_lowest_offer_listings_for_asin(
+                section
+            )
+            pprint(result.parsed)
+        except:
+            # I need to deal more gracefully with errors in the request.
+            # I should find out what asin triggered the error and remove it
+            # and try again
+            print('Unable to process {0}'.format(section))
+            continue
+        papi = PAPI(result.parsed)
+        papi.make_products()
+        for asin in section:
+            try:
+                product = papi.products[asin]
+                response.set_lowest_price_mws(asin, product.lowest_price)
+                response.set_lowest_fba_price_mws(
+                    asin,
+                    product.lowest_fba_price
+                )
+                response.set_seller(asin, product.get_cheapest_seller())
+            except:
+                #asin not in papi.products
+                pass
 
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     app.run()

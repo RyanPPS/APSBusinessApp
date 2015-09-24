@@ -30,35 +30,42 @@ def add(item):
 
 def delete(item):
     db.session.delete(item)
-    db.session.commit()    
+    db.session.commit()
 
 # Product Table
-class ProductTable(object):
+class productTable(object):
 
     def __init__(self):
         self.session = db.session()
 
-    def search_by_price(wildcard_manufacturer, price_low, price_high):
-        products = self.session.query(Product).filter(
-            Product.manufacturer.ilike(wildcard_manufacturer), 
-            Product.primary_cost >= price_low, Product.primary_cost <= price_high
-        ).all()
+    def search_by_price(self, lprice, hprice, manufacturer=None):
+        if manufacturer:
+            products = self.session.query(Product).filter(
+                Product.manufacturer.ilike(manufacturer),
+                Product.primary_cost >= lprice,
+                Product.primary_cost <= hprice
+            ).all()
+        else:
+            products = self.session.query(Product).filter(
+                Product.primary_cost >= lprice,
+                Product.primary_cost <= hprice
+            ).all()
         return products
 
 
-    def search_by_upc(upc):
+    def search_by_upc(self, upc):
         products = self.session.query(Product).filter(Product.upc == upc)
         product = products.first()
         return product
 
-    def search_by_manufacturer(manufacturer):
+    def search_by_manufacturer(self, manufacturer):
         products = self.session.query(Product).filter(
             Product.manufacturer == manufacturer
         ).all()
         return products
 
 # Catalog Table
-class CatalogTable(object):
+class catalogTable(object):
 
 
     def __init__(self):
